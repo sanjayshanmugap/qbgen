@@ -197,4 +197,4 @@ def generate_apkg():
         return send_file(temp_file.name, as_attachment=True, download_name=f'{answerline}_cards.apkg')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)),debug=True)
