@@ -77,11 +77,9 @@ spacy-loggers==1.0.5
 srsly==2.4.8
 tensorboard==2.17.0
 tensorboard-data-server==0.7.2
-tensorflow==2.12.0
+tensorflow==2.13.0
 tensorflow-hub==0.16.1
-tensorflow-intel==2.17.0
 termcolor==2.4.0
-tf_keras==2.17.0
 thinc==8.2.5
 threadpoolctl==3.5.0
 tqdm==4.66.4
