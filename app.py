@@ -9,17 +9,10 @@ import spacy
 import nltk
 import genanki
 from nltk.tokenize import sent_tokenize
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import os
 import tempfile
 
 nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
 
 app = Flask(__name__)
 embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder/4")
@@ -196,5 +189,5 @@ def generate_apkg():
         temp_file.seek(0)
         return send_file(temp_file.name, as_attachment=True, download_name=f'{answerline}_cards.apkg')
 
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)),debug=True)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
