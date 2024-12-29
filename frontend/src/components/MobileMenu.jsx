@@ -1,26 +1,27 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const navItems = [
     {
         title: "Unique Clues",
-        url: "/",
+        url: "/unique-clues/",
     },
     {
         title: "Question Generator",
-        url: "/",
+        url: "/question-generator/",
     },
     {
         title: "About",
-        url: "/",
+        url: "/about/",
     },
     {
         title: "Login",
-        url: "/",
+        url: "/login/",
     },
     {
         title: "Register",
-        url: "/",
+        url: "/register/",
     },
 ];
 
@@ -40,9 +41,9 @@ const MobileMenu = () => {
                 <ul className="flex flex-col py-4 items-center">
                     {navItems.map((item, index) => (
                         <li key={index}>
-                            <a href={item.url} className="block text-black p-4">
+                            <Link to={item.url} className="block text-black p-4" onClick={() => setNavOpen(false)}>
                                 {item.title}
-                            </a>
+                            </Link>
                         </li>
                 ))}
                 </ul>
