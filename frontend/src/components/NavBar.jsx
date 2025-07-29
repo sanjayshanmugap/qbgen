@@ -25,6 +25,14 @@ const NavBar = () => {
                             </li>
                             <li>
                                 <Link
+                                    to="/set-carding/"
+                                    className="text-gray-800 hover:bg-slate-100 px-4 py-2 rounded-md md:text-lg transition-colors"
+                                >
+                                    Set Carding
+                                </Link>
+                            </li>
+                            <li>
+                                <Link
                                     to="/question-generator/"
                                     className="text-gray-800 hover:bg-slate-100 px-4 py-2 rounded-md md:text-lg transition-colors"
                                 >

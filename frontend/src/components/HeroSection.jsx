@@ -13,7 +13,8 @@ const HeroSection = () => {
             </h1>
             <h2 className="mt-5 text-gray-700 font-semibold sm:text-xl">qbgen is a free tool for generating unique clues w/ cards and entirely new quiz bowl questions.</h2>
             <div className="mx-auto mt-5 flex max-w-fit space-x-4">
-                <Link to="/unique-clues/" className="rounded-full mx-auto max-w-fit border px-4 py-2 text-small font-medium shadow-sm border-black bg-black text-white hover:bg-white hover:text-black hover:ring-gray-600 hover:ring-1 transition-all">Start generating</Link>
+                <Link to="/unique-clues/" className="rounded-full mx-auto max-w-fit border px-4 py-2 text-small font-medium shadow-sm border-black bg-black text-white hover:bg-white hover:text-black hover:ring-gray-600 hover:ring-1 transition-all">Unique Clues</Link>
+                <Link to="/set-carding/" className="rounded-full mx-auto max-w-fit border px-4 py-2 text-small font-medium shadow-sm border-blue-600 bg-blue-600 text-white hover:bg-white hover:text-blue-600 hover:ring-blue-600 hover:ring-1 transition-all">Set Carding</Link>
                 <Link to="/about/" className="rounded-full mx-auto max-w-fit border px-4 py-2 text-small font-medium shadow-sm border-gray-200 bg-white text-black hover:ring-gray-100 hover:ring-2 transition-all">Learn more</Link>
             </div>
             <div className="mt-5 items-center justify-center">

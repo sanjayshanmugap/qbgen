@@ -4,6 +4,7 @@ import NavBar from "./components/NavBar";
 import HeroSection from "./components/HeroSection";
 import FeaturesSection from './components/FeaturesSection';
 import UniqueClues from './components/UniqueClues';
+import SetCarding from './components/SetCarding';
 import Footer from "./components/Footer";
 import FadeInSection from './components/FadeInSection';
 import About from './components/About';
@@ -39,6 +40,7 @@ function App() {
               }
             />
             <Route path="/unique-clues/" element={<UniqueClues />} />
+            <Route path="/set-carding/" element={<SetCarding />} />
             <Route path="/question-generator/" element={<QuestionGenerator />} />
             <Route path="/about/" element={<About />} />
             <Route path="/login/" element={<Login />} />

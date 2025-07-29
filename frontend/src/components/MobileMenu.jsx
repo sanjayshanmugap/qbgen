@@ -8,6 +8,10 @@ const navItems = [
         url: "/unique-clues/",
     },
     {
+        title: "Set Carding",
+        url: "/set-carding/",
+    },
+    {
         title: "Question Generator",
         url: "/question-generator/",
     },
