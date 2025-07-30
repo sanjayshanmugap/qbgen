@@ -11,6 +11,14 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/get_sets': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/process_set_clues': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/generate_apkg': {
         target: 'http://localhost:8080',
         changeOrigin: true,
