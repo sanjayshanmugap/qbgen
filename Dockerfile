@@ -28,7 +28,6 @@ COPY qbgen-landing/tsconfig.json ./
 COPY qbgen-landing/tailwind.config.js ./
 COPY qbgen-landing/postcss.config.mjs ./
 COPY qbgen-landing/components.json ./
-COPY qbgen-landing/next-env.d.ts ./
 
 # Build the Next.js application
     
