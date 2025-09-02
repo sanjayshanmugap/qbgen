@@ -14,8 +14,17 @@ RUN npm install -g pnpm
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy frontend source code
-COPY qbgen-landing/ ./
+# Copy frontend source code (excluding node_modules to avoid conflicts)
+COPY qbgen-landing/app ./app
+COPY qbgen-landing/components ./components
+COPY qbgen-landing/lib ./lib
+COPY qbgen-landing/hooks ./hooks
+COPY qbgen-landing/public ./public
+COPY qbgen-landing/styles ./styles
+COPY qbgen-landing/*.js ./
+COPY qbgen-landing/*.json ./
+COPY qbgen-landing/*.mjs ./
+COPY qbgen-landing/*.ts ./
 
 # Build the Next.js application
 RUN pnpm build
@@ -40,6 +49,10 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     python -m spacy download en_core_web_sm
+
+# Copy model download script and download the model
+COPY download_model.py .
+RUN python download_model.py
 
 # Copy backend source code
 COPY backend/ ./backend/
