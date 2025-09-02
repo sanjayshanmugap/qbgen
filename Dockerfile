@@ -21,12 +21,17 @@ COPY qbgen-landing/lib ./lib
 COPY qbgen-landing/hooks ./hooks
 COPY qbgen-landing/public ./public
 COPY qbgen-landing/styles ./styles
-COPY qbgen-landing/*.js ./
-COPY qbgen-landing/*.json ./
-COPY qbgen-landing/*.mjs ./
-COPY qbgen-landing/*.ts ./
+
+# Copy configuration files (use individual files to avoid wildcard issues)
+COPY qbgen-landing/next.config.mjs ./
+COPY qbgen-landing/tsconfig.json ./
+COPY qbgen-landing/tailwind.config.js ./
+COPY qbgen-landing/postcss.config.mjs ./
+COPY qbgen-landing/components.json ./
+COPY qbgen-landing/next-env.d.ts ./
 
 # Build the Next.js application
+    
 RUN pnpm build
 
 # Production stage with Python backend
