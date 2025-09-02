@@ -15,7 +15,14 @@ app = Flask(__name__)
 CORS(app)
 
 # Use sentence-transformers to get the same Universal Sentence Encoder model
-embed = SentenceTransformer('all-MiniLM-L6-v2')  # This is equivalent to Universal Sentence Encoder
+# Load from local model to avoid Hugging Face rate limits
+model_path = os.path.join(os.path.dirname(__file__), 'models', 'all-MiniLM-L6-v2')
+if os.path.exists(model_path):
+    print("Loading model from local path:", model_path)
+    embed = SentenceTransformer(model_path)
+else:
+    print("Local model not found, downloading from Hugging Face...")
+    embed = SentenceTransformer('all-MiniLM-L6-v2')
 nlp = spacy.load('en_core_web_sm')
 
 def get_frequency_list(subcategory, level="high-school", limit=5):
@@ -250,6 +257,10 @@ def serve_frontend():
 
 @app.route('/<path:path>')
 def serve_static(path):
+    # Skip API routes - let them be handled by their specific routes
+    if path.startswith('api/') or path.startswith('process_') or path.startswith('get_') or path.startswith('generate_'):
+        return jsonify({'error': 'API endpoint not found'}), 404
+    
     # Handle Next.js static export routing
     # First check if the path is a directory (ends with /)
     if path.endswith('/'):

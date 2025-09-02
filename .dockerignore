@@ -49,3 +49,6 @@ service.yaml
 qbgen-landing/node_modules/
 qbgen-landing/.next/
 qbgen-landing/.pnpm/
+
+# Model files (will be downloaded during build)
+backend/models/
