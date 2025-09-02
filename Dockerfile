@@ -1,40 +1,60 @@
-# Stage 1: Build the frontend
-FROM node:20 AS frontend-builder
+# Multi-stage build for Next.js frontend and Python backend
+FROM node:18-alpine AS frontend-builder
 
 # Set working directory for frontend
 WORKDIR /app/frontend
 
-# Copy package.json and package-lock.json, then install dependencies
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm install
+# Copy package files first for better caching
+COPY qbgen-landing/package*.json ./
+COPY qbgen-landing/pnpm-lock.yaml ./
 
-# Copy the rest of the frontend files and build
-COPY frontend/ ./
-RUN npm run build
+# Install pnpm
+RUN npm install -g pnpm
 
-# Stage 2: Set up the backend and serve both backend and frontend
-FROM python:3.11 AS backend
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy frontend source code
+COPY qbgen-landing/ ./
+
+# Build the Next.js application
+RUN pnpm build
+
+# Production stage with Python backend
+FROM python:3.11-slim AS production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
 
-# Set working directory for backend
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Copy backend dependencies and install them
+# Copy backend requirements and install Python dependencies
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN python -m spacy download en_core_web_sm
+RUN pip install --no-cache-dir -r requirements.txt && \
+    python -m spacy download en_core_web_sm
 
 # Copy backend source code
-COPY backend/ ./
+COPY backend/ ./backend/
 
-# Copy the frontend build output into the backend's static directory
-COPY --from=frontend-builder /app/frontend/dist /app/static
+# Copy the built Next.js frontend static files
+COPY --from=frontend-builder /app/frontend/out/ ./static/
 
-# Expose Flask development server's default port
+# Create a simple startup script
+RUN echo '#!/bin/bash\n\
+cd /app/backend\n\
+python app.py\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Expose port
 EXPOSE 8080
 
-# Start the Flask development server
-CMD ["python", "app.py"]
+# Start the application
+CMD ["/app/start.sh"]

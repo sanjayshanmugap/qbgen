@@ -1,10 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
-  Moon,
-  Sun,
   Sparkles,
   Zap,
   Download,
@@ -20,17 +17,12 @@ import {
   BookOpen,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Input } from "@/components/ui/input"
+
 
 export default function QBGenLanding() {
-  const [isDark, setIsDark] = useState(false)
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark)
-  }, [isDark])
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDark ? "dark" : ""}`}>
+    <div className="min-h-screen transition-colors duration-300">
       {/* Clean Background */}
       <motion.div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-white dark:bg-black transition-colors duration-300" />
@@ -62,37 +54,6 @@ export default function QBGenLanding() {
           className="absolute top-40 right-32 w-16 h-16 bg-purple-100/40 dark:bg-purple-900/20 rounded-lg blur-lg"
         />
       </motion.div>
-
-      {/* Clean Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 transition-colors duration-300">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="text-2xl font-black text-gray-900 dark:text-white transition-colors duration-300"
-          >
-            qbgen
-          </motion.div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Sun className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <Switch
-                checked={isDark}
-                onCheckedChange={setIsDark}
-                className="data-[state=checked]:bg-gray-900 data-[state=unchecked]:bg-gray-200"
-              />
-              <Moon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-            </div>
-            <Button
-              variant="outline"
-              className="border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors duration-300 bg-transparent"
-            >
-              Sign In
-            </Button>
-          </div>
-        </div>
-      </nav>
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-6 pt-20">
@@ -129,25 +90,29 @@ export default function QBGenLanding() {
             className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12"
           >
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg transition-all duration-300"
-              >
-                <Sparkles className="mr-2 h-5 w-5" />
-                Start Generating Clues
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
+              <a href="/unique-clues">
+                <Button
+                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg transition-all duration-300"
+                >
+                  <Sparkles className="mr-2 h-5 w-5" />
+                  Start Generating Clues
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </a>
             </motion.div>
 
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                variant="outline"
-                size="lg"
-                className="border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-900 px-8 py-4 text-lg rounded-lg transition-colors duration-300 bg-transparent"
-              >
-                <Play className="mr-2 h-5 w-5" />
-                Watch Demo
-              </Button>
+              <a href="/set-carding">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-900 px-8 py-4 text-lg rounded-lg transition-colors duration-300 bg-transparent"
+                >
+                  <Play className="mr-2 h-5 w-5" />
+                  Try Set Carding
+                </Button>
+              </a>
             </motion.div>
           </motion.div>
 
@@ -161,7 +126,7 @@ export default function QBGenLanding() {
             {[
               { icon: Users, label: "Active Users", value: "2,500+" },
               { icon: Zap, label: "Clues Generated", value: "50K+" },
-              { icon: TrendingUp, label: "Success Rate", value: "94%" },
+              { icon: TrendingUp, label: "Success Rate", value: "98%" },
             ].map((stat, index) => (
               <motion.div
                 key={index}
@@ -337,7 +302,7 @@ export default function QBGenLanding() {
             className="text-center mb-20"
           >
             <h2 className="text-5xl md:text-6xl font-black text-gray-900 dark:text-white mb-6 transition-colors duration-300">
-              Why QBGen Changes Everything
+              Why qbgen Changes Everything
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto transition-colors duration-300">
               The competitive advantage serious quiz bowl players have been waiting for
@@ -361,7 +326,7 @@ export default function QBGenLanding() {
                   {
                     icon: TrendingUp,
                     title: "94% Improvement Rate",
-                    description: "Players using QBGen show measurable improvement in competition performance",
+                    description: "Players using qbgen show measurable improvement in competition performance",
                   },
                   {
                     icon: Star,
@@ -393,20 +358,20 @@ export default function QBGenLanding() {
             >
               <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 shadow-sm">
                 <div className="bg-gray-900 dark:bg-black rounded-xl p-6 mb-6">
-                  <div className="text-green-400 text-sm font-mono mb-2">$ qbgen generate "Napoleon Bonaparte"</div>
+                  <div className="text-green-400 text-sm font-mono mb-2">$ qbgen generate &quot;Pablo Neruda&quot;</div>
                   <div className="text-gray-300 text-sm font-mono leading-relaxed">
                     {">"} Generating unique clues...
                     <br />
                     {">"} Analyzing semantic similarity...
                     <br />
-                    {">"} ✓ 15 distinct clues generated
+                    {">"} ✓ 188 distinct clues generated
                     <br />
-                    {">"} ✓ Exported to napoleon_clues.apkg
+                    {">"} ✓ Exported to pablo_neruda_clues.apkg
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2 transition-colors duration-300">
-                    15 seconds
+                    1.9 seconds
                   </div>
                   <div className="text-gray-600 dark:text-gray-400">Average generation time</div>
                 </div>
@@ -431,22 +396,33 @@ export default function QBGenLanding() {
             </h2>
 
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto transition-colors duration-300">
-              Join thousands of quiz bowl players who are already using QBGen to revolutionize their study sessions.
+              Join thousands of quiz bowl players who are already using qbgen to revolutionize their study sessions.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-              <Input
-                placeholder="Enter your email for early access"
-                className="max-w-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 transition-colors duration-300"
-              />
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button
-                  size="lg"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 font-semibold rounded-lg shadow-lg transition-all duration-300"
-                >
-                  Get Early Access
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+                <a href="/unique-clues">
+                  <Button
+                    size="lg"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 font-semibold rounded-lg shadow-lg transition-all duration-300"
+                  >
+                    <Sparkles className="mr-2 h-5 w-5" />
+                    Try Unique Clues
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </a>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <a href="/set-carding">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-900 px-8 py-3 font-semibold rounded-lg transition-colors duration-300 bg-transparent"
+                  >
+                    <Download className="mr-2 h-5 w-5" />
+                    Try Set Carding
+                  </Button>
+                </a>
               </motion.div>
             </div>
 
@@ -457,11 +433,11 @@ export default function QBGenLanding() {
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
-                No credit card required
+                No sign up required
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
-                Cancel anytime
+                Unlimited usage
               </div>
             </div>
           </motion.div>
@@ -475,7 +451,7 @@ export default function QBGenLanding() {
             <div className="text-2xl font-black text-gray-900 dark:text-white mb-4 md:mb-0 transition-colors duration-300">
               qbgen
             </div>
-            <div className="text-gray-500 dark:text-gray-400 text-sm">© 2024 QBGen. Built for quiz bowl champions.</div>
+            <div className="text-gray-500 dark:text-gray-400 text-sm">© 2025 qbgen.</div>
           </div>
         </div>
       </footer>
