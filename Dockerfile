@@ -61,8 +61,8 @@ RUN python download_model.py
 # Copy backend source code
 COPY backend/ ./backend/
 
-# Copy the built Next.js static export from host (pre-built)
-COPY qbgen-landing/out/ ./static/
+# Copy the built Next.js static export from the frontend-builder stage
+COPY --from=frontend-builder /app/frontend/out/ ./static/
 
 # Create a simple startup script
 RUN echo '#!/bin/bash\n\
