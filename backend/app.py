@@ -177,7 +177,7 @@ def cluster_and_select_clues(clues, similarity_threshold=0.7):
 
 
 
-@app.route('/process_clues', methods=['POST'])
+@app.route('/api/process_clues', methods=['POST'])
 def process_clues():
     data = request.json
     answer = data.get('answer', '')
@@ -201,7 +201,7 @@ def process_clues():
     unique_clues = cluster_and_select_clues(clues_list, similarity_threshold)
     return jsonify(unique_clues)
 
-@app.route('/get_sets', methods=['GET'])
+@app.route('/api/get_sets', methods=['GET'])
 def get_sets_endpoint():
     try:
         sets_data = get_all_sets()
@@ -209,7 +209,7 @@ def get_sets_endpoint():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/process_set_clues', methods=['POST'])
+@app.route('/api/process_set_clues', methods=['POST'])
 def process_set_clues():
     data = request.json
     set_name = data.get('set_name', '')
@@ -258,7 +258,7 @@ def serve_frontend():
 @app.route('/<path:path>')
 def serve_static(path):
     # Skip API routes - let them be handled by their specific routes
-    if path.startswith('api/') or path.startswith('process_') or path.startswith('get_') or path.startswith('generate_'):
+    if path.startswith('api/'):
         return jsonify({'error': 'API endpoint not found'}), 404
     
     # Handle Next.js static export routing
@@ -284,7 +284,7 @@ def serve_static(path):
             # If all else fails, serve main index.html for SPA routing
             return send_from_directory('/app/static', 'index.html')
 
-@app.route('/generate_apkg', methods=['POST'])
+@app.route('/api/generate_apkg', methods=['POST'])
 def generate_apkg():
     data = request.json
     clues = data['clues']
