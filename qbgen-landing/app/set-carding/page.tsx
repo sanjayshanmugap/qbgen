@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { Search, Loader2, Edit3, Trash2, Download, Check, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,10 +183,22 @@ export default function SetCardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen transition-colors duration-300">
+      {/* Clean Background */}
+      <motion.div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-0 bg-white dark:bg-black transition-colors duration-300" />
+
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 dark:from-blue-950/20 dark:via-transparent dark:to-purple-950/20 transition-colors duration-300" />
+
+        {/* Minimal floating elements */}
+        <div className="absolute top-20 left-20 w-24 h-24 bg-blue-100/40 dark:bg-blue-900/20 rounded-full blur-xl" />
+        <div className="absolute top-40 right-32 w-16 h-16 bg-purple-100/40 dark:bg-purple-900/20 rounded-lg blur-lg" />
+      </motion.div>
+
+      <div className="max-w-4xl mx-auto pt-20 px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-4 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent px-2">
+          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-4 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent px-2 leading-tight inline-block">
             Set Carding
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-300">
@@ -251,10 +264,12 @@ export default function SetCardingPage() {
                   onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                   className="w-full px-4 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-2xl text-left hover:border-blue-300 dark:hover:border-blue-600 transition-colors flex items-center justify-between bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
-                  <span className={categories.length > 0 ? "text-gray-900" : "text-gray-500"}>
-                    {categories.length > 0
-                      ? `${categories.length} categories selected`
-                      : "Select categories (optional)"}
+                  <span className={categories.length > 0 ? "text-gray-800 dark:text-gray-100" : "text-gray-500"}>
+                    {categories.length === 0
+                      ? "Select categories (optional)"
+                      : categories.length === 1
+                      ? "1 category selected"
+                      : `${categories.length} categories selected`}
                   </span>
                   <ChevronDown className="h-5 w-5 text-gray-400" />
                 </Button>

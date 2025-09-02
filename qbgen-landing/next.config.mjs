@@ -9,27 +9,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:8080/:path*',
-      },
-      {
-        source: '/static/:path*',
-        destination: 'http://localhost:8080/static/:path*',
-      },
-    ]
-  },
-  async redirects() {
-    return [
-      {
-        source: '/tools',
-        destination: 'http://localhost:8080/static/',
-        permanent: false,
-      },
-    ]
-  },
+  output: 'export',
+  trailingSlash: true,
+  assetPrefix: '',
+  basePath: '',
+  distDir: 'out',
 }
 
 export default nextConfig

@@ -11,7 +11,7 @@ import tempfile
 from flask_cors import CORS
 from sentence_transformers import SentenceTransformer
 
-app = Flask(__name__, static_folder='static', static_url_path="/static")
+app = Flask(__name__)
 CORS(app)
 
 # Use sentence-transformers to get the same Universal Sentence Encoder model
@@ -168,14 +168,7 @@ def cluster_and_select_clues(clues, similarity_threshold=0.7):
 
     return unique_clues
 
-@app.route('/unique-clues/')
-def home():
-    return send_from_directory(app.static_folder, 'index.html')
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def catch_all(path):
-    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/process_clues', methods=['POST'])
 def process_clues():
@@ -246,6 +239,39 @@ def process_set_clues():
         return jsonify(unique_clues)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy', 'service': 'qbgen-app'}), 200
+
+@app.route('/')
+def serve_frontend():
+    return send_from_directory('/app/static', 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    # Handle Next.js static export routing
+    # First check if the path is a directory (ends with /)
+    if path.endswith('/'):
+        # For directory routes like /about/, serve index.html from that directory
+        try:
+            return send_from_directory(f'/app/static/{path.rstrip("/")}', 'index.html')
+        except:
+            # If directory doesn't exist, fall back to main index.html
+            return send_from_directory('/app/static', 'index.html')
+    
+    # Check if the path is a file (CSS, JS, images, etc.)
+    try:
+        return send_from_directory('/app/static', path)
+    except:
+        # If file not found, check if it's a route that should serve index.html from a subdirectory
+        # Remove trailing slash and try to serve index.html from that directory
+        clean_path = path.rstrip('/')
+        try:
+            return send_from_directory(f'/app/static/{clean_path}', 'index.html')
+        except:
+            # If all else fails, serve main index.html for SPA routing
+            return send_from_directory('/app/static', 'index.html')
 
 @app.route('/generate_apkg', methods=['POST'])
 def generate_apkg():

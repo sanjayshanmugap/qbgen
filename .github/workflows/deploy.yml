@@ -1,0 +1,88 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: qbgen-app
+  REGION: us-central1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
+
+    - name: Install frontend dependencies
+      working-directory: ./qbgen-landing
+      run: pnpm install --frozen-lockfile
+
+    - name: Build frontend
+      working-directory: ./qbgen-landing
+      run: pnpm build
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        python -m spacy download en_core_web_sm
+
+    - name: Google Auth
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+    - name: Set up Cloud SDK
+      uses: 'google-github-actions/setup-gcloud@v2'
+
+    - name: Configure Docker
+      run: gcloud auth configure-docker
+
+    - name: Build and push Docker image
+      run: |
+        docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} .
+        docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }}
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy $SERVICE_NAME \
+          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} \
+          --platform managed \
+          --region $REGION \
+          --allow-unauthenticated \
+          --port 8080 \
+          --memory 2Gi \
+          --cpu 2 \
+          --timeout 300 \
+          --concurrency 80 \
+          --max-instances 10
+
+    - name: Show service URL
+      run: |
+        gcloud run services describe $SERVICE_NAME \
+          --platform managed \
+          --region $REGION \
+          --format 'value(status.url)'

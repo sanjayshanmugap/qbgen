@@ -1,0 +1,51 @@
+# Dependencies
+**/node_modules/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Build outputs
+**/.next/
+**/dist/
+**/build/
+**/out/
+
+# Development files
+.git/
+.gitignore
+README.md
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Docker files
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Deployment files
+deploy.sh
+deploy.ps1
+DEPLOYMENT.md
+service.yaml
+
+# Misc
+*.swp
+*.swo
+*~
+
+# Specific to qbgen-landing
+qbgen-landing/node_modules/
+qbgen-landing/.next/
+qbgen-landing/.pnpm/

@@ -126,7 +126,7 @@ export default function QBGenLanding() {
             {[
               { icon: Users, label: "Active Users", value: "2,500+" },
               { icon: Zap, label: "Clues Generated", value: "50K+" },
-              { icon: TrendingUp, label: "Success Rate", value: "94%" },
+              { icon: TrendingUp, label: "Success Rate", value: "98%" },
             ].map((stat, index) => (
               <motion.div
                 key={index}
@@ -326,7 +326,7 @@ export default function QBGenLanding() {
                   {
                     icon: TrendingUp,
                     title: "94% Improvement Rate",
-                    description: "Players using QBGen show measurable improvement in competition performance",
+                    description: "Players using qbgen show measurable improvement in competition performance",
                   },
                   {
                     icon: Star,
@@ -371,7 +371,7 @@ export default function QBGenLanding() {
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2 transition-colors duration-300">
-                    4.6 seconds
+                    1.9 seconds
                   </div>
                   <div className="text-gray-600 dark:text-gray-400">Average generation time</div>
                 </div>
@@ -396,7 +396,7 @@ export default function QBGenLanding() {
             </h2>
 
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto transition-colors duration-300">
-              Join thousands of quiz bowl players who are already using QBGen to revolutionize their study sessions.
+              Join thousands of quiz bowl players who are already using qbgen to revolutionize their study sessions.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
@@ -433,11 +433,11 @@ export default function QBGenLanding() {
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
-                No credit card required
+                No sign up required
               </div>
               <div className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-green-500" />
-                Cancel anytime
+                Unlimited usage
               </div>
             </div>
           </motion.div>

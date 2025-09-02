@@ -5,8 +5,40 @@ import Link from "next/link"
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen transition-colors duration-300">
+      {/* Clean Background */}
+      <motion.div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-0 bg-white dark:bg-black transition-colors duration-300" />
+
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 dark:from-blue-950/20 dark:via-transparent dark:to-purple-950/20 transition-colors duration-300" />
+
+        {/* Minimal floating elements */}
+        <motion.div
+          animate={{
+            rotate: 360,
+            scale: [1, 1.05, 1],
+          }}
+          transition={{
+            rotate: { duration: 30, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
+            scale: { duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" },
+          }}
+          className="absolute top-20 left-20 w-24 h-24 bg-blue-100/40 dark:bg-blue-900/20 rounded-full blur-xl"
+        />
+        <motion.div
+          animate={{
+            rotate: -360,
+            y: [0, -10, 0],
+          }}
+          transition={{
+            rotate: { duration: 40, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
+            y: { duration: 6, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" },
+          }}
+          className="absolute top-40 right-32 w-16 h-16 bg-purple-100/40 dark:bg-purple-900/20 rounded-lg blur-lg"
+        />
+      </motion.div>
+
+      <div className="max-w-4xl mx-auto pt-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -17,7 +49,7 @@ export default function AboutPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1 }}
-            className="text-5xl font-bold text-gray-900 dark:text-white mb-6 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent"
+            className="text-5xl font-bold text-gray-900 dark:text-white mb-6 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight inline-block"
           >
             About
           </motion.h1>
