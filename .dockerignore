@@ -13,7 +13,6 @@ venv/
 **/.next/
 **/dist/
 **/build/
-**/out/
 
 # Development files
 .git/
