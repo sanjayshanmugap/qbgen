@@ -57,3 +57,5 @@ coverage/
 
 # OS
 Thumbs.db
+
+.pnpm-store/
