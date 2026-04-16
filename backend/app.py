@@ -30,6 +30,23 @@ SIMILARITY_SEARCH_BATCH_SIZE = int(os.environ.get("SIMILARITY_SEARCH_BATCH_SIZE"
 EMBED_CACHE_SIZE = int(os.environ.get("EMBED_CACHE_SIZE", "10000"))
 QBREADER_API_BASE = "https://qbreader.org/api"
 
+# Maps raw QBReader difficulty (1-10) to perceived difficulty.
+# Tune these values freely; they're applied before any clue-difficulty math.
+DIFFICULTY_CURVE = {
+    1: 1.0,
+    2: 1.3,
+    3: 2.8,
+    4: 3.2,
+    5: 4.5,
+    6: 3.1,
+    7: 5.8,
+    8: 7.1,
+    9: 8.4,
+    10: 10.0,
+}
+DEFAULT_PERCEIVED_DIFFICULTY = 4.5
+POSITION_DECAY = 0.9
+
 
 def parse_cors_origins():
     raw_origins = os.environ.get("CORS_ORIGINS", "*").strip()
@@ -297,31 +314,66 @@ def select_cluster_representative(component, embeddings):
     return component[best_local_idx]
 
 
-def cluster_and_select_clues(clues, similarity_threshold=0.7):
-    """Cluster semantically similar clues and keep the best representatives."""
-    filtered_clues = [clue.lstrip() for clue in clues if len(clue.lstrip()) >= 30]
-    if len(filtered_clues) == 0:
+def compute_clue_difficulty(record):
+    """Map a clue record to its perceived difficulty on a 1-10 scale."""
+    perceived = DIFFICULTY_CURVE.get(record.get("tossup_difficulty"), DEFAULT_PERCEIVED_DIFFICULTY)
+    position_weight = 1.0 - POSITION_DECAY * record.get("position_ratio", 0.0)
+    return max(1.0, min(10.0, perceived * position_weight))
+
+
+def cluster_and_select_clues(clue_records, similarity_threshold=0.7):
+    """Cluster semantically similar clue records and return one representative per cluster.
+
+    Each record should contain at least `text`, `tossup_difficulty`, and `position_ratio`.
+    Returns a list of {text, difficulty, cluster_size} sorted hardest to easiest.
+    """
+    filtered_records = []
+    for record in clue_records:
+        stripped_text = record["text"].lstrip()
+        if len(stripped_text) < 30:
+            continue
+        filtered_records.append({**record, "text": stripped_text})
+
+    if not filtered_records:
         return []
 
-    embeddings = get_sentence_embeddings(filtered_clues)
+    embeddings = get_sentence_embeddings([r["text"] for r in filtered_records])
     adjacency_list = build_similarity_graph(embeddings, similarity_threshold)
     components = connected_components(adjacency_list)
 
+    clue_difficulties = [compute_clue_difficulty(r) for r in filtered_records]
+
     ranked_components = []
     for component in components:
-        representative = select_cluster_representative(component, embeddings)
-        ranked_components.append((component, representative))
+        representative_idx = select_cluster_representative(component, embeddings)
+        cluster_difficulty = sum(clue_difficulties[idx] for idx in component) / len(component)
+        ranked_components.append({
+            "text": filtered_records[representative_idx]["text"],
+            "difficulty": round(cluster_difficulty, 2),
+            "cluster_size": len(component),
+        })
 
-    ranked_components.sort(key=lambda item: (-len(item[0]), item[1]))
-    representatives = [representative for _, representative in ranked_components]
-    return [filtered_clues[idx] for idx in representatives]
+    ranked_components.sort(key=lambda item: (-item["difficulty"], -item["cluster_size"]))
+    return ranked_components
 
 
-def split_questions_into_sentences(questions):
-    clues = []
-    for doc in nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE):
-        clues.extend(sent.text for sent in doc.sents if sent.text.strip())
-    return clues
+def split_tossups_into_clue_records(tossup_records):
+    """Split each tossup into per-sentence records carrying position + source difficulty."""
+    records = []
+    questions = [tossup["question"] for tossup in tossup_records]
+    for tossup, doc in zip(tossup_records, nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE)):
+        question_length = max(len(tossup["question"]), 1)
+        for sentence in doc.sents:
+            if not sentence.text.strip():
+                continue
+            center = (sentence.start_char + sentence.end_char) / 2
+            position_ratio = min(max(center / question_length, 0.0), 1.0)
+            records.append({
+                "text": sentence.text,
+                "tossup_difficulty": tossup.get("difficulty"),
+                "position_ratio": position_ratio,
+            })
+    return records
 
 
 @app.route("/api/process_clues", methods=["POST"])
@@ -350,20 +402,34 @@ def process_clues():
         log_stage(request_id, "qbreader_query", query_started, tossups=len(question_array))
 
         filter_started = time.perf_counter()
-        matching_questions = []
+        matching_tossups = []
         for question_data in question_array:
             question = clean_text(question_data["question"])
             question_answer = clean_answer(question_data["answer"]).lower()
             if question_answer == target_answer:
-                matching_questions.append(question)
-        log_stage(request_id, "filter_matching_questions", filter_started, matches=len(matching_questions))
+                matching_tossups.append({
+                    "question": question,
+                    "difficulty": question_data.get("difficulty"),
+                })
+        log_stage(request_id, "filter_matching_questions", filter_started, matches=len(matching_tossups))
 
         split_started = time.perf_counter()
-        clues = split_questions_into_sentences(matching_questions)
-        log_stage(request_id, "sentence_split", split_started, clue_count=len(clues))
+        clue_records = split_tossups_into_clue_records(matching_tossups)
+        log_stage(request_id, "sentence_split", split_started, clue_count=len(clue_records))
 
         dedupe_started = time.perf_counter()
-        clue_candidates = list(dict.fromkeys(clues))
+        deduped_by_text = {}
+        for record in clue_records:
+            text = record["text"]
+            existing = deduped_by_text.get(text)
+            if existing is None:
+                deduped_by_text[text] = record
+                continue
+            existing_diff = DIFFICULTY_CURVE.get(existing.get("tossup_difficulty"), -1)
+            candidate_diff = DIFFICULTY_CURVE.get(record.get("tossup_difficulty"), -1)
+            if candidate_diff > existing_diff:
+                deduped_by_text[text] = record
+        clue_candidates = list(deduped_by_text.values())
         log_stage(request_id, "dedupe_clues", dedupe_started, unique_candidates=len(clue_candidates))
 
         cluster_started = time.perf_counter()
@@ -416,9 +482,11 @@ def process_set_clues():
         prepare_started = time.perf_counter()
         questions = []
         answers = []
+        tossup_difficulties = []
         for question_data in question_array:
             questions.append(clean_text(question_data["question"]))
             answers.append(clean_answer(question_data["answer"]))
+            tossup_difficulties.append(question_data.get("difficulty"))
         log_stage(request_id, "prepare_set_questions", prepare_started, prepared=len(questions))
 
         split_started = time.perf_counter()
@@ -427,13 +495,22 @@ def process_set_clues():
 
         build_started = time.perf_counter()
         clues_with_answers = []
-        for answerline, doc in zip(answers, docs):
+        for answerline, tossup_difficulty, doc, question_text in zip(answers, tossup_difficulties, docs, questions):
+            question_length = max(len(question_text), 1)
             for sentence in doc.sents:
-                if sentence.text.strip():
-                    clues_with_answers.append({
-                        "text": sentence.text,
-                        "answerline": answerline,
-                    })
+                if not sentence.text.strip():
+                    continue
+                center = (sentence.start_char + sentence.end_char) / 2
+                position_ratio = min(max(center / question_length, 0.0), 1.0)
+                difficulty = compute_clue_difficulty({
+                    "tossup_difficulty": tossup_difficulty,
+                    "position_ratio": position_ratio,
+                })
+                clues_with_answers.append({
+                    "text": sentence.text,
+                    "answerline": answerline,
+                    "difficulty": round(difficulty, 2),
+                })
         log_stage(request_id, "build_set_clues", build_started, clues=len(clues_with_answers))
 
         dedupe_started = time.perf_counter()
