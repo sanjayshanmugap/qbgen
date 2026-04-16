@@ -1,173 +1,119 @@
 "use client"
 
-import { motion } from "framer-motion"
 import Link from "next/link"
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen transition-colors duration-300">
-      {/* Clean Background */}
-      <motion.div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-white dark:bg-black transition-colors duration-300" />
+    <div className="min-h-screen animate-fade-in">
+      <div className="max-w-2xl mx-auto px-6 pt-16 pb-24">
+        <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-4">About</div>
+        <h1 className="font-serif text-5xl md:text-6xl text-foreground mb-10 leading-[1.05]">
+          qbgen.
+        </h1>
 
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 dark:from-blue-950/20 dark:via-transparent dark:to-purple-950/20 transition-colors duration-300" />
-
-        {/* Minimal floating elements */}
-        <motion.div
-          animate={{
-            rotate: 360,
-            scale: [1, 1.05, 1],
-          }}
-          transition={{
-            rotate: { duration: 30, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
-            scale: { duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" },
-          }}
-          className="absolute top-20 left-20 w-24 h-24 bg-blue-100/40 dark:bg-blue-900/20 rounded-full blur-xl"
-        />
-        <motion.div
-          animate={{
-            rotate: -360,
-            y: [0, -10, 0],
-          }}
-          transition={{
-            rotate: { duration: 40, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
-            y: { duration: 6, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" },
-          }}
-          className="absolute top-40 right-32 w-16 h-16 bg-purple-100/40 dark:bg-purple-900/20 rounded-lg blur-lg"
-        />
-      </motion.div>
-
-      <div className="max-w-4xl mx-auto pt-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white/20 dark:border-gray-700/20"
-        >
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.1 }}
-            className="text-5xl font-bold text-gray-900 dark:text-white mb-6 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight inline-block"
+        <p className="text-lg text-foreground/90 leading-relaxed mb-12">
+          qbgen is a quiz bowl AI tool created by{" "}
+          <a
+            href="https://github.com/sanjayshanmugap/"
+            className="text-accent underline underline-offset-4 decoration-accent/50 hover:decoration-accent"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            About
-          </motion.h1>
-          
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="text-lg text-gray-700 dark:text-gray-300 mb-8 leading-relaxed"
+            Sanjay Shanmuga Perumal
+          </a>
+          . qbgen uses the{" "}
+          <a
+            href="https://www.qbreader.org/api-docs/"
+            className="text-accent underline underline-offset-4 decoration-accent/50 hover:decoration-accent"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            qbgen is a quiz bowl AI tool created by{" "}
-            <a 
-              href="https://github.com/sanjayshanmugap/" 
-              className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Sanjay Shanmuga Perumal
-            </a>
-            .
-            <br />
-            qbgen uses the{" "}
-            <a 
-              href="https://www.qbreader.org/api-docs/" 
-              className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              QBReader API
-            </a>
-            .
-          </motion.p>
+            QBReader API
+          </a>
+          .
+        </p>
 
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            className="text-4xl font-bold text-gray-900 dark:text-white mb-6"
-          >
-            How to Use
-          </motion.h2>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="space-y-8"
-          >
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                <Link 
-                  href="/unique-clues"
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+        <div className="border-t border-foreground/15 pt-12 space-y-14">
+          <section>
+            <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-3">
+              How to use
+            </div>
+            <h2 className="font-serif text-3xl text-foreground mb-5">
+              <Link
+                href="/unique-clues"
+                className="text-accent underline underline-offset-4 decoration-accent/40 hover:decoration-accent"
+              >
+                Unique clue generator
+              </Link>
+            </h2>
+            <ol className="text-foreground/85 leading-relaxed space-y-4 list-decimal pl-5 marker:text-muted-foreground">
+              <li>
+                Copy + paste the <strong>main answerline</strong> from{" "}
+                <a
+                  href="https://qbreader.org"
+                  className="text-accent underline underline-offset-4 decoration-accent/40 hover:decoration-accent"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  Unique Clue Generator
-                </Link>
-              </h3>
-              <div className="text-gray-700 dark:text-gray-300 leading-relaxed space-y-3">
-                <p>
-                  1. Copy + paste the <strong>main answerline</strong> from{" "}
-                  <a 
-                    href="https://qbreader.org" 
-                    className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    qbreader.org
-                  </a>
-                  . (I recommend pasting directly from <strong>frequency lists</strong>.)
-                </p>
-                <p className="ml-6">
-                  a. e.g. the main answerline from <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                    <strong>ANSWER:</strong> Pablo <strong><u>Neruda</u></strong> [or Ricardo Eliécer Neftalí <strong><u>Reyes</u></strong> Basoalto]
-                  </code> is <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                    Pablo <strong><u>Neruda</u></strong>
+                  qbreader.org
+                </a>
+                . (Pasting directly from frequency lists works best.)
+                <div className="mt-2 text-sm text-muted-foreground">
+                  e.g. the main answerline from{" "}
+                  <code className="bg-surface border border-foreground/10 px-1.5 py-0.5 font-mono text-foreground">
+                    <strong>ANSWER:</strong> Pablo <u>Neruda</u> [or Ricardo Eliécer Neftalí <u>Reyes</u> Basoalto]
+                  </code>{" "}
+                  is{" "}
+                  <code className="bg-surface border border-foreground/10 px-1.5 py-0.5 font-mono text-foreground">
+                    Pablo <u>Neruda</u>
                   </code>
-                </p>
-                <p>2. Select the <strong>category</strong> or <strong>categories</strong> you want to generate clues for. (only necessary if your given answerline comes up in multiple categories in different contexts)</p>
-                <p>3. Select the <strong>difficulty level(s)</strong>.</p>
-                <p>4. Click <strong>&quot;Generate Clues&quot;</strong> to generate unique clues.</p>
-                <p>5. Use the <strong>&quot;Similarity Threshold&quot;</strong> slider to adjust how many unique clues are generated.</p>
-                <p className="ml-6">
-                  a. Higher threshold = more clues with more duplicates and vice versa. Using too low of a threshold may result in removing non-duplicate clues.
-                </p>
-                <p>6. Click <strong>&quot;Export Cards&quot;</strong> to export the cards to Anki.</p>
-              </div>
-            </div>
+                  .
+                </div>
+              </li>
+              <li>
+                Select the <strong>category</strong> or <strong>categories</strong> you want to generate clues for. (Only necessary if the answerline appears in multiple categories.)
+              </li>
+              <li>
+                Select the <strong>difficulty level(s)</strong>.
+              </li>
+              <li>
+                Click <strong>Generate Clues</strong>.
+              </li>
+              <li>
+                Use the <strong>similarity threshold</strong> slider to adjust how many unique clues are generated.
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Higher threshold = more clues with more duplicates, and vice versa. A threshold that is too low may remove non-duplicate clues.
+                </div>
+              </li>
+              <li>
+                Click <strong>Export Cards</strong> to download an Anki package.
+              </li>
+            </ol>
+          </section>
 
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                <Link 
-                  href="/set-carding"
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-                >
-                  Set Carding
-                </Link>
-              </h3>
-              <div className="text-gray-700 dark:text-gray-300 leading-relaxed space-y-3">
-                <p>
-                  1. Search for and select a specific quiz bowl <strong>set</strong> from the dropdown.
-                </p>
-                <p>2. Optionally select <strong>categories</strong> to filter the questions.</p>
-                <p>3. Click <strong>&quot;Generate Clues&quot;</strong> to extract all clues from that set.</p>
-                <p>4. Edit, delete, or export the clues as Anki cards.</p>
-              </div>
-            </div>
+          <section>
+            <h2 className="font-serif text-3xl text-foreground mb-5">
+              <Link
+                href="/set-carding"
+                className="text-accent underline underline-offset-4 decoration-accent/40 hover:decoration-accent"
+              >
+                Set carding
+              </Link>
+            </h2>
+            <ol className="text-foreground/85 leading-relaxed space-y-3 list-decimal pl-5 marker:text-muted-foreground">
+              <li>Search for and select a specific quiz bowl <strong>set</strong> from the dropdown.</li>
+              <li>Optionally select <strong>categories</strong> to filter the questions.</li>
+              <li>Click <strong>Generate Clues</strong> to extract all clues from that set.</li>
+              <li>Edit, delete, or export the clues as Anki cards.</li>
+            </ol>
+          </section>
 
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                Question Generator
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300 italic">
-                Coming soon.
-              </p>
-            </div>
-          </motion.div>
-        </motion.div>
+          <section>
+            <h2 className="font-serif text-3xl text-foreground mb-3">Question generator</h2>
+            <p className="text-muted-foreground italic">Coming soon.</p>
+          </section>
+        </div>
       </div>
     </div>
   )
-} 
+}

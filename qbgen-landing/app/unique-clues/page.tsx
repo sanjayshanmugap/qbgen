@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { Loader2, Edit3, Trash2, Download, Check, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { buildApiUrl } from "@/lib/api";
 
 export default function UniqueCluesPage() {
   const [answerline, setAnswerline] = useState("");
@@ -17,6 +17,8 @@ export default function UniqueCluesPage() {
   const [editingClue, setEditingClue] = useState<number | null>(null);
   const [editedClueText, setEditedClueText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
 
@@ -72,12 +74,35 @@ export default function UniqueCluesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingMessage("");
+      return;
+    }
+
+    setLoadingMessage("Generating clues...");
+
+    const coldStartTimer = window.setTimeout(() => {
+      setLoadingMessage("Waking up the backend. The first request after idle can take a bit longer.");
+    }, 4000);
+
+    const upstreamTimer = window.setTimeout(() => {
+      setLoadingMessage("Still working. QBReader or semantic clustering may be taking longer than usual.");
+    }, 12000);
+
+    return () => {
+      window.clearTimeout(coldStartTimer);
+      window.clearTimeout(upstreamTimer);
+    };
+  }, [isLoading]);
+
   const handleGenerateClues = async () => {
     if (!answerline.trim()) return;
-    
+
     setIsLoading(true);
+    setErrorMessage("");
     try {
-      const response = await fetch("/api/process_clues", {
+      const response = await fetch(buildApiUrl("/api/process_clues"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -88,29 +113,39 @@ export default function UniqueCluesPage() {
         }),
       });
 
-      const data = await response.json();
-      if (data.error) {
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to generate clues.");
+      }
+      if (data?.error) {
         throw new Error(data.error);
       }
       setClues(data);
       setSubmittedAnswerline(answerline.trim());
     } catch (error) {
       console.error("Error fetching clues:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to generate clues.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleExportCards = async () => {
+    setErrorMessage("");
     try {
-      const response = await fetch("/api/generate_apkg", {
+      const response = await fetch(buildApiUrl("/api/generate_apkg"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          clues: clues.map(clue => clue.text || clue), 
-          answerline: submittedAnswerline 
+        body: JSON.stringify({
+          clues: clues.map(clue => clue.text || clue),
+          answerline: submittedAnswerline
         }),
       });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to export cards.");
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -123,6 +158,7 @@ export default function UniqueCluesPage() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting cards:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to export cards.");
     }
   };
 
@@ -162,87 +198,78 @@ export default function UniqueCluesPage() {
     setClues(clues.filter((_, i) => i !== index));
   };
 
+  const selectionLabel = (n: number, singular: string, plural: string) =>
+    n === 0
+      ? `Select ${plural}`
+      : n === 1
+      ? `1 ${singular} selected`
+      : `${n} ${plural} selected`;
+
   return (
-    <div className="min-h-screen transition-colors duration-300">
-      {/* Clean Background */}
-      <motion.div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-white dark:bg-black transition-colors duration-300" />
-
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 dark:from-blue-950/20 dark:via-transparent dark:to-purple-950/20 transition-colors duration-300" />
-
-        {/* Minimal floating elements */}
-        <div className="absolute top-20 left-20 w-24 h-24 bg-blue-100/40 dark:bg-blue-900/20 rounded-full blur-xl" />
-        <div className="absolute top-40 right-32 w-16 h-16 bg-purple-100/40 dark:bg-purple-900/20 rounded-lg blur-lg" />
-      </motion.div>
-
-      <div className="max-w-4xl mx-auto pt-20 px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-4 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent px-2 leading-tight inline-block">
-            Unique Clues Generator
+    <div className="min-h-screen animate-fade-in">
+      <div className="max-w-2xl mx-auto px-6 pt-16 pb-24">
+        <div className="mb-14">
+          <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-3">
+            Unique Clues
+          </div>
+          <h1 className="font-serif text-5xl md:text-6xl text-foreground mb-4 leading-[1.05]">
+            Generate unique clues.
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300">
-            Generate unique clues for any answerline with semantic similarity filtering
+          <p className="text-muted-foreground text-lg leading-relaxed">
+            Enter an answerline and get semantically distinct quiz bowl clues.
           </p>
         </div>
 
-        {/* Input Section */}
-        <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-8 border border-white/20 dark:border-gray-700/20">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Generate Clues</h2>
-          
-          <div className="mb-6">
-            <label className="block text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
+        {/* Form */}
+        <div className="space-y-10">
+          <div>
+            <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
               Answerline
             </label>
             <Input
               type="text"
-              placeholder="Enter the answerline (e.g. Pablo Neruda)"
+              placeholder="e.g. Pablo Neruda"
               value={answerline}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 setAnswerline(e.target.value);
-                // Clear submitted answerline when user starts typing a new one
                 if (submittedAnswerline) {
                   setSubmittedAnswerline("");
                   setClues([]);
                 }
               }}
-              className="w-full px-4 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 transition-all text-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
+              className="text-lg h-12"
             />
           </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Categories */}
-              <div className="relative" ref={categoryDropdownRef}>
-                <label className="block text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Categories
-                </label>
-              <Button
-                variant="outline"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Categories */}
+            <div className="relative" ref={categoryDropdownRef}>
+              <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                Categories
+              </label>
+              <button
+                type="button"
                 onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-2xl text-left hover:border-blue-300 dark:hover:border-blue-600 transition-colors flex items-center justify-between bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
               >
-                <span className={categories.length > 0 ? "text-gray-800 dark:text-gray-100" : "text-gray-500"}>
-                  {categories.length === 0
-                    ? "Select categories"
-                    : categories.length === 1
-                    ? "1 category selected"
-                    : `${categories.length} categories selected`}
+                <span className={categories.length > 0 ? "text-foreground" : "text-muted-foreground"}>
+                  {selectionLabel(categories.length, "category", "categories")}
                 </span>
-                <ChevronDown className="h-5 w-5 text-gray-400" />
-              </Button>
-              
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </button>
+
               {showCategoryDropdown && (
-                <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-700 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
+                <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
                   {categoryOptions.map((category) => (
                     <label
                       key={category}
-                      className="flex items-center px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 cursor-pointer text-gray-900 dark:text-gray-100"
+                      className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
                     >
                       <input
                         type="checkbox"
                         checked={categories.includes(category)}
                         onChange={() => handleCheckboxChange(category, setCategories, categories)}
-                        className="mr-3 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-gray-600 rounded"
+                        className="mr-3 h-4 w-4 accent-accent"
                       />
                       {category}
                     </label>
@@ -253,36 +280,32 @@ export default function UniqueCluesPage() {
 
             {/* Difficulties */}
             <div className="relative" ref={difficultyDropdownRef}>
-              <label className="block text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
                 Difficulties
               </label>
-              <Button
-                variant="outline"
+              <button
+                type="button"
                 onClick={() => setShowDifficultyDropdown(!showDifficultyDropdown)}
-                className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-2xl text-left hover:border-blue-300 dark:hover:border-blue-600 transition-colors flex items-center justify-between bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
               >
-                <span className={difficulties.length > 0 ? "text-gray-800 dark:text-gray-100" : "text-gray-500"}>
-                  {difficulties.length === 0
-                    ? "Select difficulties"
-                    : difficulties.length === 1
-                    ? "1 difficulty selected"
-                    : `${difficulties.length} difficulties selected`}
+                <span className={difficulties.length > 0 ? "text-foreground" : "text-muted-foreground"}>
+                  {selectionLabel(difficulties.length, "difficulty", "difficulties")}
                 </span>
-                <ChevronDown className="h-5 w-5 text-gray-400" />
-              </Button>
-              
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </button>
+
               {showDifficultyDropdown && (
-                <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-700 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
+                <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
                   {difficultyOptions.map((difficulty) => (
                     <label
                       key={difficulty}
-                      className="flex items-center px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 cursor-pointer text-gray-900 dark:text-gray-100"
+                      className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
                     >
                       <input
                         type="checkbox"
                         checked={difficulties.includes(difficulty)}
                         onChange={() => handleCheckboxChange(difficulty, setDifficulties, difficulties)}
-                        className="mr-3 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-gray-600 rounded"
+                        className="mr-3 h-4 w-4 accent-accent"
                       />
                       {difficulty}
                     </label>
@@ -292,11 +315,14 @@ export default function UniqueCluesPage() {
             </div>
           </div>
 
-          {/* Similarity Threshold */}
-          <div className="mb-6">
-            <label className="block text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Similarity Threshold: {similarityThreshold}
-            </label>
+          {/* Similarity threshold */}
+          <div>
+            <div className="flex items-baseline justify-between mb-2">
+              <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                Similarity threshold
+              </label>
+              <span className="font-mono text-sm text-foreground">{similarityThreshold.toFixed(2)}</span>
+            </div>
             <input
               type="range"
               min="0.1"
@@ -304,115 +330,116 @@ export default function UniqueCluesPage() {
               step="0.01"
               value={similarityThreshold}
               onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gradient-to-r from-purple-200 to-blue-200 rounded-lg appearance-none cursor-pointer"
+              className="w-full"
             />
-            <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mt-2">
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <span>More unique</span>
               <span>More similar</span>
             </div>
           </div>
 
-          {/* Generate Button */}
-          <Button
-            onClick={handleGenerateClues}
-            disabled={!answerline.trim() || isLoading}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 px-6 rounded-2xl font-bold text-lg hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="animate-spin h-6 w-6 mr-3" />
-                Generating clues...
-              </>
-            ) : (
-              "Generate Clues"
+          {/* Generate */}
+          <div className="pt-2">
+            <Button
+              onClick={handleGenerateClues}
+              disabled={!answerline.trim() || isLoading}
+              size="lg"
+              className="w-full sm:w-auto sm:min-w-[220px]"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="animate-spin h-4 w-4" />
+                  Generating…
+                </>
+              ) : (
+                "Generate clues"
+              )}
+            </Button>
+
+            {isLoading && loadingMessage && (
+              <p className="mt-4 text-sm text-muted-foreground">{loadingMessage}</p>
             )}
-          </Button>
+
+            {errorMessage && (
+              <p className="mt-4 text-sm text-destructive border-l-2 border-destructive pl-3">
+                {errorMessage}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Results */}
         {clues.length > 0 && (
-          <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white/20 dark:border-gray-700/20">
-            <div className="flex justify-between items-center mb-6">
+          <div className="mt-20">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8 pb-4 border-b border-foreground/15">
               <div>
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-                  Generated Clues ({clues.length})
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  Generated · {clues.length}
+                </div>
+                <h2 className="font-serif text-3xl text-foreground">
+                  {submittedAnswerline || "Clues"}
                 </h2>
-                {submittedAnswerline && (
-                  <p className="text-lg text-purple-600 dark:text-purple-400 font-semibold mt-2">
-                    Answerline: {submittedAnswerline}
-                  </p>
-                )}
               </div>
-              <Button
-                onClick={handleExportCards}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-2xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all transform hover:scale-105 flex items-center shadow-lg"
-              >
-                <Download className="h-5 w-5 mr-2" />
-                Export Cards
+              <Button onClick={handleExportCards} variant="outline">
+                <Download className="h-4 w-4" />
+                Export cards
               </Button>
             </div>
 
-            <div className="space-y-4">
+            <ul className="divide-y divide-foreground/15">
               {clues.map((clue, index) => (
-                <div
-                  key={index}
-                  className="border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-4 hover:border-purple-300 dark:hover:border-purple-600 transition-all hover:shadow-lg"
-                >
+                <li key={index} className="group py-5 hover:bg-foreground/[0.03] -mx-2 px-2 transition-colors">
                   {editingClue === index ? (
                     <div className="space-y-3">
-                                                                    <textarea
-                         value={editedClueText}
-                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditedClueText(e.target.value)}
-                         className="w-full p-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 resize-none"
-                         rows={3}
-                       />
-                      <div className="flex space-x-3">
-                        <Button
-                          onClick={handleSaveEdit}
-                          className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition-all flex items-center"
-                        >
-                          <Check className="h-4 w-4 mr-1" />
+                      <textarea
+                        value={editedClueText}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditedClueText(e.target.value)}
+                        className="w-full p-3 border border-foreground/20 bg-transparent text-foreground focus:outline-none focus:border-accent resize-none"
+                        rows={3}
+                      />
+                      <div className="flex gap-2">
+                        <Button onClick={handleSaveEdit} size="sm">
+                          <Check className="h-4 w-4" />
                           Save
                         </Button>
-                                                                          <Button
-                           variant="outline"
-                           onClick={handleCancelEdit}
-                           className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-4 py-2 rounded-xl font-semibold hover:from-gray-600 hover:to-gray-700 transition-all flex items-center"
-                         >
-                          <X className="h-4 w-4 mr-1" />
+                        <Button onClick={handleCancelEdit} size="sm" variant="outline">
+                          <X className="h-4 w-4" />
                           Cancel
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex justify-between items-start">
-                      <p className="text-gray-800 dark:text-gray-200 flex-1 pr-4 text-lg leading-relaxed">
+                    <div className="flex items-start gap-4">
+                      <p className="text-foreground/90 flex-1 leading-relaxed">
                         {clue.text || clue}
                       </p>
-                      <div className="flex space-x-2">
-                                                                          <Button
-                           variant="ghost"
-                           onClick={() => handleEditClue(index)}
-                           className="text-purple-600 hover:text-purple-800 transition-colors p-2 hover:bg-purple-50 rounded-lg"
-                         >
-                           <Edit3 className="h-5 w-5" />
-                         </Button>
-                         <Button
-                           variant="ghost"
-                           onClick={() => handleDeleteClue(index)}
-                           className="text-red-600 hover:text-red-800 transition-colors p-2 hover:bg-red-50 rounded-lg"
-                         >
-                           <Trash2 className="h-5 w-5" />
-                         </Button>
+                      <div className="flex opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditClue(index)}
+                          aria-label="Edit clue"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteClue(index)}
+                          aria-label="Delete clue"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   )}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         )}
       </div>
     </div>
   );
-} 
+}

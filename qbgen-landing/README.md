@@ -1,6 +1,6 @@
 # QBGen - Next.js Integration
 
-This is the complete QBGen application with a professional landing page and integrated tools, built with Next.js and connected to your existing Flask backend.
+This is the frontend for QBGen, built with Next.js and designed to be hosted separately from the Flask backend.
 
 ## Architecture
 
@@ -8,8 +8,8 @@ This is the complete QBGen application with a professional landing page and inte
 - **Unique Clues Tool**: `/unique-clues` - Generate unique clues for any answerline
 - **Set Carding Tool**: `/set-carding` - Generate clues from specific quiz bowl sets
 - **About Page**: `/about` - Information about the tool and how to use it
-- **Backend**: Your existing Flask API (port 8080)
-- **Integration**: Next.js pages call your Flask API endpoints
+- **Backend**: Flask API hosted separately, locally on port `8080` or in production on Cloud Run
+- **Integration**: Client-side fetches call the backend using `NEXT_PUBLIC_API_BASE_URL`
 
 ## Features
 
@@ -26,7 +26,7 @@ This is the complete QBGen application with a professional landing page and inte
 ### Prerequisites
 - Node.js 18+
 - pnpm (recommended) or npm
-- Your Flask backend running on port 8080
+- Your Flask backend running on port `8080`
 
 ### Setup
 1. Install dependencies:
@@ -34,12 +34,17 @@ This is the complete QBGen application with a professional landing page and inte
    pnpm install
    ```
 
-2. Start the development server:
+2. Configure the backend URL:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Start the development server:
    ```bash
    pnpm dev
    ```
 
-3. Make sure your Flask backend is running on port 8080
+4. Make sure your Flask backend is running on port `8080`
 
 ### Building for Production
 ```bash
@@ -65,11 +70,15 @@ The application includes a persistent navigation bar with:
 
 ## API Integration
 
-The Next.js app proxies API calls to your Flask backend:
-- `/api/process_clues` → `http://localhost:8080/process_clues`
-- `/api/process_set_clues` → `http://localhost:8080/process_set_clues`
-- `/api/generate_apkg` → `http://localhost:8080/generate_apkg`
-- `/api/get_sets` → `http://localhost:8080/get_sets`
+The frontend calls the backend directly using `NEXT_PUBLIC_API_BASE_URL`.
+
+For local development:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+For production on Vercel, set `NEXT_PUBLIC_API_BASE_URL` to your public Cloud Run backend URL.
 
 ## Testing
 
@@ -80,7 +89,9 @@ pnpm test-setup
 
 ## Deployment
 
-See `DEPLOYMENT.md` for detailed deployment instructions.
+- Host `qbgen-landing` on Vercel
+- Set `NEXT_PUBLIC_API_BASE_URL` in Vercel to your Cloud Run backend URL
+- Deploy the Flask backend separately to Cloud Run
 
 ## Styling
 

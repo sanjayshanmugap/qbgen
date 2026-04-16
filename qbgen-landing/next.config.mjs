@@ -13,7 +13,6 @@ const nextConfig = {
   trailingSlash: true,
   assetPrefix: '',
   basePath: '',
-  distDir: 'out',
   experimental: {
     outputFileTracingRoot: undefined,
   },

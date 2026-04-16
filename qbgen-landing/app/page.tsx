@@ -1,6 +1,5 @@
 "use client"
 
-import { motion } from "framer-motion"
 import {
   Sparkles,
   Zap,
@@ -8,451 +7,245 @@ import {
   ArrowRight,
   Play,
   Check,
-  Star,
-  Users,
-  TrendingUp,
   Clock,
-  Edit,
-  Cpu,
-  BookOpen,
+  TrendingUp,
+  Star,
 } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
+const features = [
+  {
+    icon: Sparkles,
+    title: "Unique clue generation",
+    description:
+      "Enter an answerline and get semantically distinct quiz bowl clues. Never study the same clue twice.",
+  },
+  {
+    icon: Download,
+    title: "Anki export",
+    description:
+      "Download your generated clues as .apkg files for Anki's spaced repetition system.",
+  },
+  {
+    icon: Zap,
+    title: "Question generator",
+    description:
+      "AI-assisted question generation. Build complete practice sets with answers and clues.",
+    comingSoon: true,
+  },
+]
+
+const steps = [
+  { num: "01", title: "Input answer", description: "Enter any quiz bowl answerline or topic." },
+  { num: "02", title: "Analyze", description: "Semantic similarity processes your input." },
+  { num: "03", title: "Generate", description: "Unique, distinct clues are created instantly." },
+  { num: "04", title: "Export", description: "Download as Anki cards or study directly." },
+]
+
+const benefits = [
+  {
+    icon: Clock,
+    title: "Faster study sessions",
+    description: "Generate hundreds of unique clues in minutes, not hours of manual research.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Measurable gains",
+    description: "Players using qbgen report clear improvement in competition performance.",
+  },
+  {
+    icon: Star,
+    title: "Semantic uniqueness",
+    description: "Never study duplicate clues again, thanks to similarity-based filtering.",
+  },
+]
 
 export default function QBGenLanding() {
-
   return (
-    <div className="min-h-screen transition-colors duration-300">
-      {/* Clean Background */}
-      <motion.div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-white dark:bg-black transition-colors duration-300" />
-
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 dark:from-blue-950/20 dark:via-transparent dark:to-purple-950/20 transition-colors duration-300" />
-
-        {/* Minimal floating elements */}
-        <motion.div
-          animate={{
-            rotate: 360,
-            scale: [1, 1.05, 1],
-          }}
-          transition={{
-            rotate: { duration: 30, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
-            scale: { duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" },
-          }}
-          className="absolute top-20 left-20 w-24 h-24 bg-blue-100/40 dark:bg-blue-900/20 rounded-full blur-xl"
-        />
-        <motion.div
-          animate={{
-            rotate: -360,
-            y: [0, -10, 0],
-          }}
-          transition={{
-            rotate: { duration: 40, repeat: Number.POSITIVE_INFINITY, ease: "linear" },
-            y: { duration: 6, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" },
-          }}
-          className="absolute top-40 right-32 w-16 h-16 bg-purple-100/40 dark:bg-purple-900/20 rounded-lg blur-lg"
-        />
-      </motion.div>
-
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-6 pt-20">
-        <motion.div className="text-center max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="mb-8"
-          >
-            <motion.h1 className="text-6xl md:text-8xl font-black text-gray-900 dark:text-white mb-6 leading-tight transition-colors duration-300">
-              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
-                Revolutionize
-              </span>
-              <br />
-              Your Quiz Bowl Study
-            </motion.h1>
-
-            <motion.p
-              className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed transition-colors duration-300"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-            >
-              Generate unique, semantically-analyzed quiz bowl clues from any answer. Export to Anki. Dominate
-              competitions.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12"
-          >
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <a href="/unique-clues">
-                <Button
-                  size="lg"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg transition-all duration-300"
-                >
-                  <Sparkles className="mr-2 h-5 w-5" />
-                  Start Generating Clues
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </a>
-            </motion.div>
-
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <a href="/set-carding">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-900 px-8 py-4 text-lg rounded-lg transition-colors duration-300 bg-transparent"
-                >
-                  <Play className="mr-2 h-5 w-5" />
-                  Try Set Carding
-                </Button>
-              </a>
-            </motion.div>
-          </motion.div>
-
-          {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-2xl mx-auto"
-          >
-            {[
-              { icon: Users, label: "Active Users", value: "2,500+" },
-              { icon: Zap, label: "Clues Generated", value: "50K+" },
-              { icon: TrendingUp, label: "Success Rate", value: "98%" },
-            ].map((stat, index) => (
-              <motion.div
-                key={index}
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-300"
-              >
-                <stat.icon className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
-                <div className="text-gray-600 dark:text-gray-400 text-sm">{stat.label}</div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </motion.div>
+    <div className="min-h-screen animate-fade-in">
+      {/* Hero */}
+      <section className="px-6 pt-24 pb-28 md:pt-32 md:pb-36">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="font-serif text-5xl md:text-7xl font-medium text-foreground mb-6 leading-[1.05] tracking-tight">
+            Revolutionize your
+            <br />
+            quiz bowl study.
+          </h1>
+          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+            Generate unique, semantically-analyzed quiz bowl clues from any answer. Export to Anki. Dominate competitions.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <Link href="/unique-clues">
+              <Button size="lg" className="min-w-[220px]">
+                Start generating clues
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/set-carding">
+              <Button size="lg" variant="outline" className="min-w-[220px]">
+                <Play className="h-4 w-4" />
+                Try set carding
+              </Button>
+            </Link>
+          </div>
+        </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-32 px-6 relative">
-        <div className="container mx-auto max-w-7xl">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-20"
-          >
-            <h2 className="text-5xl md:text-6xl font-black text-gray-900 dark:text-white mb-6 transition-colors duration-300">
-              Powerful Features
-            </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto transition-colors duration-300">
-              Everything you need to master quiz bowl, powered by cutting-edge AI and semantic analysis
-            </p>
-          </motion.div>
+      {/* Stats strip */}
+      <section className="border-t border-foreground/15 border-b">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-foreground/15">
+          {[
+            { label: "Active users", value: "2,500+" },
+            { label: "Clues generated", value: "50K+" },
+            { label: "Success rate", value: "98%" },
+          ].map((s) => (
+            <div key={s.label} className="px-8 py-8 text-center">
+              <div className="font-serif text-4xl md:text-5xl text-foreground mb-1">{s.value}</div>
+              <div className="text-sm uppercase tracking-[0.18em] text-muted-foreground">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: Sparkles,
-                title: "Unique Clue Generation",
-                description:
-                  "Input any answer and get semantically distinct quiz bowl clues using advanced AI analysis. Never study the same clue twice.",
-                gradient: "from-purple-500 to-pink-500",
-                delay: 0,
-              },
-              {
-                icon: Download,
-                title: "Anki Card Export",
-                description:
-                  "Export your generated clues as .apkg files for seamless integration with Anki's spaced repetition system.",
-                gradient: "from-blue-500 to-cyan-500",
-                delay: 0.2,
-              },
-              {
-                icon: Zap,
-                title: "Question Generator",
-                description:
-                  "AI-powered quiz bowl question generation coming soon. Create complete practice sets with answers and clues.",
-                gradient: "from-green-500 to-emerald-500",
-                delay: 0.4,
-                comingSoon: true,
-              },
-            ].map((feature, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: feature.delay }}
-                viewport={{ once: true }}
-                whileHover={{ scale: 1.02, y: -5 }}
-                className="group relative"
-              >
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all duration-300 h-full shadow-sm hover:shadow-md">
-                  {feature.comingSoon && (
-                    <div className="absolute top-4 right-4 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-semibold px-3 py-1 rounded-full">
-                      COMING SOON
-                    </div>
+      {/* Features */}
+      <section className="px-6 py-24 md:py-32">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16 max-w-2xl">
+            <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-3">Features</div>
+            <h2 className="font-serif text-4xl md:text-5xl text-foreground mb-4">
+              Everything you need to master quiz bowl.
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Built on semantic analysis and spaced repetition. No fluff.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-12 md:gap-10">
+            {features.map((f) => (
+              <div key={f.title} className="relative">
+                <f.icon className="h-5 w-5 text-foreground mb-5" strokeWidth={1.5} />
+                <h3 className="font-serif text-2xl text-foreground mb-3">
+                  {f.title}
+                  {f.comingSoon && (
+                    <span className="align-middle ml-2 text-[10px] uppercase tracking-[0.18em] text-accent border border-accent/40 px-1.5 py-0.5">
+                      Soon
+                    </span>
                   )}
-
-                  <div
-                    className={`w-16 h-16 rounded-xl bg-gradient-to-r ${feature.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}
-                  >
-                    <feature.icon className="h-8 w-8 text-white" />
-                  </div>
-
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 transition-colors duration-300">
-                    {feature.title}
-                  </h3>
-
-                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{feature.description}</p>
-                </div>
-              </motion.div>
+                </h3>
+                <p className="text-muted-foreground leading-relaxed">{f.description}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="py-32 px-6 relative bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
-        <div className="container mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-20"
-          >
-            <h2 className="text-5xl md:text-6xl font-black text-gray-900 dark:text-white mb-6 transition-colors duration-300">
-              How It Works
+      {/* How It Works */}
+      <section className="px-6 py-24 md:py-32 border-t border-foreground/15">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16 max-w-2xl">
+            <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-3">How it works</div>
+            <h2 className="font-serif text-4xl md:text-5xl text-foreground">
+              Four steps, start to finish.
             </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto transition-colors duration-300">
-              Four simple steps to transform your quiz bowl preparation
-            </p>
-          </motion.div>
+          </div>
 
-          <div className="grid md:grid-cols-4 gap-8">
+          <ol className="grid md:grid-cols-4 gap-10 md:gap-6">
+            {steps.map((s) => (
+              <li key={s.num} className="md:border-l md:border-foreground/15 md:pl-6">
+                <div className="font-serif text-5xl text-muted-foreground mb-3">{s.num}</div>
+                <div className="text-sm uppercase tracking-[0.18em] text-foreground mb-2">{s.title}</div>
+                <p className="text-muted-foreground leading-relaxed">{s.description}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Benefits */}
+      <section className="px-6 py-24 md:py-32 border-t border-foreground/15">
+        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 items-start">
+          <div>
+            <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-3">Why qbgen</div>
+            <h2 className="font-serif text-4xl md:text-5xl text-foreground mb-8">
+              The competitive advantage serious players have been waiting for.
+            </h2>
+            <ul className="space-y-6">
+              {benefits.map((b) => (
+                <li key={b.title} className="flex gap-4">
+                  <b.icon className="h-5 w-5 text-foreground shrink-0 mt-1" strokeWidth={1.5} />
+                  <div>
+                    <div className="font-serif text-xl text-foreground mb-1">{b.title}</div>
+                    <p className="text-muted-foreground leading-relaxed">{b.description}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="md:sticky md:top-28">
+            <div className="border-t border-b border-foreground/20 py-6">
+              <pre className="font-mono text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+<span className="text-accent">$</span> qbgen generate &quot;Pablo Neruda&quot;
+{"\n"}{">"} Generating unique clues...
+{"\n"}{">"} Analyzing semantic similarity...
+{"\n"}<span className="text-accent">{">"} ✓</span> 188 distinct clues generated
+{"\n"}<span className="text-accent">{">"} ✓</span> Exported to pablo_neruda_clues.apkg
+              </pre>
+            </div>
+            <div className="mt-6">
+              <div className="font-serif text-3xl text-foreground">1.9s</div>
+              <div className="text-sm uppercase tracking-[0.18em] text-muted-foreground mt-1">
+                Average generation time
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="px-6 py-24 md:py-32 border-t border-foreground/15">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="font-serif text-4xl md:text-5xl text-foreground mb-6">
+            Ready to dominate quiz bowl?
+          </h2>
+          <p className="text-muted-foreground text-lg mb-10">
+            Join thousands of quiz bowl players using qbgen to revolutionize their study sessions.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-10">
+            <Link href="/unique-clues">
+              <Button size="lg" className="min-w-[220px]">
+                Try unique clues
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/set-carding">
+              <Button size="lg" variant="outline" className="min-w-[220px]">
+                <Download className="h-4 w-4" />
+                Try set carding
+              </Button>
+            </Link>
+          </div>
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
             {[
-              { step: "01", title: "Input Answer", description: "Enter any quiz bowl answer or topic", icon: Edit },
-              {
-                step: "02",
-                title: "AI Analysis",
-                description: "Semantic similarity analysis processes your input",
-                icon: Cpu,
-              },
-              {
-                step: "03",
-                title: "Generate Clues",
-                description: "Unique, distinct clues are created instantly",
-                icon: Sparkles,
-              },
-              {
-                step: "04",
-                title: "Export & Study",
-                description: "Download as Anki cards or study directly",
-                icon: BookOpen,
-              },
-            ].map((item, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ scale: 1.05, y: -10 }}
-                className="text-center group relative"
-              >
-                <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all duration-300 shadow-sm">
-                  <item.icon className="h-12 w-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
-                  <div className="text-blue-600 dark:text-blue-400 font-bold text-sm mb-2">{item.step}</div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 transition-colors duration-300">
-                    {item.title}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">{item.description}</p>
-                </div>
-
-                {index < 3 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
-                    <ArrowRight className="h-6 w-6 text-blue-400" />
-                  </div>
-                )}
-              </motion.div>
+              "Free during beta",
+              "No sign up required",
+              "Unlimited usage",
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-accent" strokeWidth={1.75} />
+                {item}
+              </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="py-32 px-6 relative">
-        <div className="container mx-auto max-w-7xl">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-20"
-          >
-            <h2 className="text-5xl md:text-6xl font-black text-gray-900 dark:text-white mb-6 transition-colors duration-300">
-              Why qbgen Changes Everything
-            </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto transition-colors duration-300">
-              The competitive advantage serious quiz bowl players have been waiting for
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              viewport={{ once: true }}
-            >
-              <div className="space-y-8">
-                {[
-                  {
-                    icon: Clock,
-                    title: "10x Faster Study Sessions",
-                    description: "Generate hundreds of unique clues in minutes, not hours of manual research",
-                  },
-                  {
-                    icon: TrendingUp,
-                    title: "94% Improvement Rate",
-                    description: "Players using qbgen show measurable improvement in competition performance",
-                  },
-                  {
-                    icon: Star,
-                    title: "Semantic Uniqueness",
-                    description: "Never study duplicate clues again with our advanced similarity analysis",
-                  },
-                ].map((benefit, index) => (
-                  <motion.div key={index} whileHover={{ x: 10 }} className="flex items-start gap-4 group">
-                    <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                      <benefit.icon className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 transition-colors duration-300">
-                        {benefit.title}
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400">{benefit.description}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              viewport={{ once: true }}
-              className="relative"
-            >
-              <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 shadow-sm">
-                <div className="bg-gray-900 dark:bg-black rounded-xl p-6 mb-6">
-                  <div className="text-green-400 text-sm font-mono mb-2">$ qbgen generate &quot;Pablo Neruda&quot;</div>
-                  <div className="text-gray-300 text-sm font-mono leading-relaxed">
-                    {">"} Generating unique clues...
-                    <br />
-                    {">"} Analyzing semantic similarity...
-                    <br />
-                    {">"} ✓ 188 distinct clues generated
-                    <br />
-                    {">"} ✓ Exported to pablo_neruda_clues.apkg
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2 transition-colors duration-300">
-                    1.9 seconds
-                  </div>
-                  <div className="text-gray-600 dark:text-gray-400">Average generation time</div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-32 px-6 relative bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
-        <div className="container mx-auto max-w-4xl text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="bg-white dark:bg-gray-900 rounded-2xl p-12 border border-gray-200 dark:border-gray-800 shadow-sm"
-          >
-            <h2 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-6 transition-colors duration-300">
-              Ready to Dominate Quiz Bowl?
-            </h2>
-
-            <p className="text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto transition-colors duration-300">
-              Join thousands of quiz bowl players who are already using qbgen to revolutionize their study sessions.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <a href="/unique-clues">
-                  <Button
-                    size="lg"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 font-semibold rounded-lg shadow-lg transition-all duration-300"
-                  >
-                    <Sparkles className="mr-2 h-5 w-5" />
-                    Try Unique Clues
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </a>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <a href="/set-carding">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-900 px-8 py-3 font-semibold rounded-lg transition-colors duration-300 bg-transparent"
-                  >
-                    <Download className="mr-2 h-5 w-5" />
-                    Try Set Carding
-                  </Button>
-                </a>
-              </motion.div>
-            </div>
-
-            <div className="flex items-center justify-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-              <div className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-green-500" />
-                Free during beta
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-green-500" />
-                No sign up required
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="h-4 w-4 text-green-500" />
-                Unlimited usage
-              </div>
-            </div>
-          </motion.div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black transition-colors duration-300">
-        <div className="container mx-auto max-w-6xl">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="text-2xl font-black text-gray-900 dark:text-white mb-4 md:mb-0 transition-colors duration-300">
-              qbgen
-            </div>
-            <div className="text-gray-500 dark:text-gray-400 text-sm">© 2025 qbgen.</div>
-          </div>
+      <footer className="border-t border-foreground/15 px-6 py-10">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
+          <div className="font-serif text-xl text-foreground">qbgen</div>
+          <div className="text-sm text-muted-foreground">© 2026 qbgen.</div>
         </div>
       </footer>
     </div>

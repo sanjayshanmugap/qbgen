@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { Search, Loader2, Edit3, Trash2, Download, Check, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { buildApiUrl } from "@/lib/api";
 
 export default function SetCardingPage() {
   const [setSearchQuery, setSetSearchQuery] = useState("");
@@ -17,6 +17,8 @@ export default function SetCardingPage() {
   const [editingClue, setEditingClue] = useState<number | null>(null);
   const [editedClueText, setEditedClueText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showSetDropdown, setShowSetDropdown] = useState(false);
 
@@ -38,31 +40,34 @@ export default function SetCardingPage() {
     "Trash",
   ];
 
-  // Fetch all sets on component mount
   useEffect(() => {
     const fetchSets = async () => {
+      setErrorMessage("");
       try {
-        const response = await fetch('/api/get_sets');
-        const data = await response.json();
+        const response = await fetch(buildApiUrl("/api/get_sets"));
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to fetch sets.");
+        }
         setAllSets(data);
       } catch (error) {
         console.error("Error fetching sets:", error);
+        setErrorMessage(error instanceof Error ? error.message : "Failed to fetch sets.");
       }
     };
     fetchSets();
   }, []);
 
-  // Filter sets based on search query
   useEffect(() => {
     if (setSearchQuery.trim() === '') {
       setFilteredSets([]);
       return;
     }
-    
-    const filtered = allSets.filter(set => 
+
+    const filtered = allSets.filter(set =>
       set.toLowerCase().includes(setSearchQuery.toLowerCase())
-    ).slice(0, 10); // Limit to 10 results for better UX
-    
+    ).slice(0, 10);
+
     setFilteredSets(filtered);
   }, [setSearchQuery, allSets]);
 
@@ -87,12 +92,35 @@ export default function SetCardingPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingMessage("");
+      return;
+    }
+
+    setLoadingMessage("Generating clues...");
+
+    const coldStartTimer = window.setTimeout(() => {
+      setLoadingMessage("Waking up the backend. The first request after idle can take a bit longer.");
+    }, 4000);
+
+    const upstreamTimer = window.setTimeout(() => {
+      setLoadingMessage("Still working. QBReader or sentence processing may be taking longer than usual.");
+    }, 12000);
+
+    return () => {
+      window.clearTimeout(coldStartTimer);
+      window.clearTimeout(upstreamTimer);
+    };
+  }, [isLoading]);
+
   const handleGenerateClues = async () => {
     if (!selectedSet) return;
 
     setIsLoading(true);
+    setErrorMessage("");
     try {
-      const response = await fetch("/api/process_set_clues", {
+      const response = await fetch(buildApiUrl("/api/process_set_clues"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -101,41 +129,50 @@ export default function SetCardingPage() {
         }),
       });
 
-      const data = await response.json();
-      if (data.error) {
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to generate set clues.");
+      }
+      if (data?.error) {
         throw new Error(data.error);
       }
       setClues(data);
     } catch (error) {
       console.error("Error fetching clues:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to generate set clues.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleExportCards = async () => {
+    setErrorMessage("");
     try {
-      const response = await fetch("/api/generate_apkg", {
+      const response = await fetch(buildApiUrl("/api/generate_apkg"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          clues: clues  // Send the full clue objects with text and answerline
+        body: JSON.stringify({
+          clues: clues
         }),
       });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to export cards.");
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      
-      // Create filename with categories if they are used
+
       let filename = `${selectedSet}`;
       if (categories.length > 0) {
         const categoriesString = categories.join("_");
         filename += `_${categoriesString}`;
       }
       filename += "_cards.apkg";
-      
+
       link.download = filename;
       document.body.appendChild(link);
       link.click();
@@ -143,6 +180,7 @@ export default function SetCardingPage() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting cards:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to export cards.");
     }
   };
 
@@ -182,221 +220,217 @@ export default function SetCardingPage() {
     setClues(clues.filter((_, i) => i !== index));
   };
 
+  const categoryLabel =
+    categories.length === 0
+      ? "Select categories (optional)"
+      : categories.length === 1
+      ? "1 category selected"
+      : `${categories.length} categories selected`;
+
   return (
-    <div className="min-h-screen transition-colors duration-300">
-      {/* Clean Background */}
-      <motion.div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-white dark:bg-black transition-colors duration-300" />
-
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 dark:from-blue-950/20 dark:via-transparent dark:to-purple-950/20 transition-colors duration-300" />
-
-        {/* Minimal floating elements */}
-        <div className="absolute top-20 left-20 w-24 h-24 bg-blue-100/40 dark:bg-blue-900/20 rounded-full blur-xl" />
-        <div className="absolute top-40 right-32 w-16 h-16 bg-purple-100/40 dark:bg-purple-900/20 rounded-lg blur-lg" />
-      </motion.div>
-
-      <div className="max-w-4xl mx-auto pt-20 px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-4 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent px-2 leading-tight inline-block">
+    <div className="min-h-screen animate-fade-in">
+      <div className="max-w-2xl mx-auto px-6 pt-16 pb-24">
+        <div className="mb-14">
+          <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-3">
             Set Carding
+          </div>
+          <h1 className="font-serif text-5xl md:text-6xl text-foreground mb-4 leading-[1.05]">
+            Card an entire set.
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300">
-            Generate unique clues from specific quiz bowl sets
+          <p className="text-muted-foreground text-lg leading-relaxed">
+            Pull all clues from a specific quiz bowl set and export them to Anki.
           </p>
         </div>
 
-        {/* Set Search and Filters - Side by Side */}
-        <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-8 border border-white/20 dark:border-gray-700/20">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Select Set and Filters</h2>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Set Selector */}
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Select a Set</h3>
-              <div className="relative" ref={setDropdownRef}>
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                  <Input
-                    type="text"
-                    placeholder="Search for a quiz bowl set..."
-                    value={setSearchQuery}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      setSetSearchQuery(e.target.value);
-                      setShowSetDropdown(true);
+        <div className="space-y-10">
+          {/* Set search */}
+          <div className="relative" ref={setDropdownRef}>
+            <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+              Set
+            </label>
+            <div className="relative">
+              <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" strokeWidth={1.75} />
+              <Input
+                type="text"
+                placeholder="Search for a quiz bowl set…"
+                value={setSearchQuery}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setSetSearchQuery(e.target.value);
+                  setShowSetDropdown(true);
+                }}
+                className="pl-7 h-12 text-lg"
+              />
+            </div>
+
+            {showSetDropdown && filteredSets.length > 0 && (
+              <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
+                {filteredSets.map((set, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSet(set);
+                      setSetSearchQuery(set);
+                      setShowSetDropdown(false);
                     }}
-                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 transition-all text-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                  />
-                </div>
-                
-                {showSetDropdown && filteredSets.length > 0 && (
-                  <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-700 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
-                    {filteredSets.map((set, index) => (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          setSelectedSet(set);
-                          setSetSearchQuery(set);
-                          setShowSetDropdown(false);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 first:rounded-t-2xl last:rounded-b-2xl text-gray-900 dark:text-gray-100"
-                      >
-                        <div className="font-semibold">{set}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                    className="w-full text-left px-3 py-2 hover:bg-foreground/5 transition-colors text-foreground"
+                  >
+                    {set}
+                  </button>
+                ))}
               </div>
+            )}
 
-              {selectedSet && (
-                <div className="bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 border-2 border-purple-200 dark:border-purple-700 rounded-2xl p-4 mt-4">
-                  <p className="text-purple-900 dark:text-purple-300 font-bold text-lg">Selected: {selectedSet}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Category Filter */}
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Categories (Optional)</h3>
-              <div className="relative" ref={categoryDropdownRef}>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                  className="w-full px-4 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-2xl text-left hover:border-blue-300 dark:hover:border-blue-600 transition-colors flex items-center justify-between bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                >
-                  <span className={categories.length > 0 ? "text-gray-800 dark:text-gray-100" : "text-gray-500"}>
-                    {categories.length === 0
-                      ? "Select categories (optional)"
-                      : categories.length === 1
-                      ? "1 category selected"
-                      : `${categories.length} categories selected`}
-                  </span>
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                </Button>
-                
-                {showCategoryDropdown && (
-                  <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-700 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
-                    {categoryOptions.map((category) => (
-                      <label
-                        key={category}
-                        className="flex items-center px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 cursor-pointer text-gray-900 dark:text-gray-100"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={categories.includes(category)}
-                          onChange={() => handleCheckboxChange(category, setCategories, categories)}
-                          className="mr-3 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-gray-600 rounded"
-                        />
-                        {category}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            {selectedSet && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Selected: <span className="text-foreground">{selectedSet}</span>
+              </p>
+            )}
           </div>
 
-          {/* Generate Button */}
-          <div className="mt-8">
+          {/* Category filter */}
+          <div className="relative" ref={categoryDropdownRef}>
+            <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+              Categories
+              <span className="normal-case tracking-normal text-muted-foreground ml-1">(optional)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+              className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
+            >
+              <span className={categories.length > 0 ? "text-foreground" : "text-muted-foreground"}>
+                {categoryLabel}
+              </span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </button>
+
+            {showCategoryDropdown && (
+              <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
+                {categoryOptions.map((category) => (
+                  <label
+                    key={category}
+                    className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={categories.includes(category)}
+                      onChange={() => handleCheckboxChange(category, setCategories, categories)}
+                      className="mr-3 h-4 w-4 accent-accent"
+                    />
+                    {category}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Generate */}
+          <div className="pt-2">
             <Button
               onClick={handleGenerateClues}
               disabled={!selectedSet || isLoading}
-              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 px-6 rounded-2xl font-bold text-lg hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
+              size="lg"
+              className="w-full sm:w-auto sm:min-w-[220px]"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin h-6 w-6 mr-3" />
-                  Generating clues...
+                  <Loader2 className="animate-spin h-4 w-4" />
+                  Generating…
                 </>
               ) : (
-                "Generate Clues"
+                "Generate clues"
               )}
             </Button>
+
+            {isLoading && loadingMessage && (
+              <p className="mt-4 text-sm text-muted-foreground">{loadingMessage}</p>
+            )}
+
+            {errorMessage && (
+              <p className="mt-4 text-sm text-destructive border-l-2 border-destructive pl-3">
+                {errorMessage}
+              </p>
+            )}
           </div>
         </div>
 
         {/* Results */}
         {clues.length > 0 && (
-          <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white/20 dark:border-gray-700/20">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Generated Clues ({clues.length})
-              </h2>
-              <Button
-                onClick={handleExportCards}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-2xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all transform hover:scale-105 flex items-center shadow-lg"
-              >
-                <Download className="h-5 w-5 mr-2" />
-                Export Cards
+          <div className="mt-20">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8 pb-4 border-b border-foreground/15">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  Generated · {clues.length}
+                </div>
+                <h2 className="font-serif text-3xl text-foreground">{selectedSet}</h2>
+              </div>
+              <Button onClick={handleExportCards} variant="outline">
+                <Download className="h-4 w-4" />
+                Export cards
               </Button>
             </div>
 
-            <div className="space-y-4">
+            <ul className="divide-y divide-foreground/15">
               {clues.map((clue, index) => (
-                <div
-                  key={index}
-                  className="border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-4 hover:border-purple-300 dark:hover:border-purple-600 transition-all hover:shadow-lg"
-                >
+                <li key={index} className="group py-5 hover:bg-foreground/[0.03] -mx-2 px-2 transition-colors">
                   {editingClue === index ? (
                     <div className="space-y-3">
-                                                                    <textarea
-                         value={editedClueText}
-                         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditedClueText(e.target.value)}
-                         className="w-full p-3 border-2 border-gray-300 rounded-xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 resize-none"
-                         rows={3}
-                       />
-                      <div className="flex space-x-3">
-                        <Button
-                          onClick={handleSaveEdit}
-                          className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition-all flex items-center"
-                        >
-                          <Check className="h-4 w-4 mr-1" />
+                      <textarea
+                        value={editedClueText}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditedClueText(e.target.value)}
+                        className="w-full p-3 border border-foreground/20 bg-transparent text-foreground focus:outline-none focus:border-accent resize-none"
+                        rows={3}
+                      />
+                      <div className="flex gap-2">
+                        <Button onClick={handleSaveEdit} size="sm">
+                          <Check className="h-4 w-4" />
                           Save
                         </Button>
-                                                                          <Button
-                           variant="outline"
-                           onClick={handleCancelEdit}
-                           className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-4 py-2 rounded-xl font-semibold hover:from-gray-600 hover:to-gray-700 transition-all flex items-center"
-                         >
-                          <X className="h-4 w-4 mr-1" />
+                        <Button onClick={handleCancelEdit} size="sm" variant="outline">
+                          <X className="h-4 w-4" />
                           Cancel
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 pr-4">
-                        <p className="text-gray-800 dark:text-gray-200 text-lg leading-relaxed mb-2">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1">
+                        <p className="text-foreground/90 leading-relaxed mb-1.5">
                           {clue.text || clue}
                         </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                          Answer: <span className="text-purple-600 dark:text-purple-400">{clue.answerline || 'N/A'}</span>
+                        <p className="text-sm text-muted-foreground">
+                          Answer:{" "}
+                          <span className="text-accent">{clue.answerline || "N/A"}</span>
                         </p>
                       </div>
-                      <div className="flex space-x-2">
-                                                                          <Button
-                           variant="ghost"
-                           onClick={() => handleEditClue(index)}
-                           className="text-purple-600 hover:text-purple-800 transition-colors p-2 hover:bg-purple-50 rounded-lg"
-                         >
-                           <Edit3 className="h-5 w-5" />
-                         </Button>
-                         <Button
-                           variant="ghost"
-                           onClick={() => handleDeleteClue(index)}
-                           className="text-red-600 hover:text-red-800 transition-colors p-2 hover:bg-red-50 rounded-lg"
-                         >
-                           <Trash2 className="h-5 w-5" />
-                         </Button>
+                      <div className="flex opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditClue(index)}
+                          aria-label="Edit clue"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteClue(index)}
+                          aria-label="Delete clue"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   )}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         )}
       </div>
     </div>
   );
-} 
+}

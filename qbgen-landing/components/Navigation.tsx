@@ -1,84 +1,81 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
 import { Moon, Sun } from "lucide-react"
-
-import { Switch } from "@/components/ui/switch"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+const links = [
+  { href: "/unique-clues", label: "Unique Clues" },
+  { href: "/set-carding", label: "Set Carding" },
+  { href: "/about", label: "About" },
+]
+
 export function Navigation() {
   const [isDark, setIsDark] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
 
   useEffect(() => {
-    // Check for saved theme preference or default to light mode
-    const savedTheme = localStorage.getItem('qbgen-theme')
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+    setMounted(true)
+    const savedTheme = localStorage.getItem("qbgen-theme")
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
       setIsDark(true)
       document.documentElement.classList.add("dark")
     }
   }, [])
 
   useEffect(() => {
+    if (!mounted) return
     document.documentElement.classList.toggle("dark", isDark)
-    localStorage.setItem('qbgen-theme', isDark ? 'dark' : 'light')
-  }, [isDark])
+    localStorage.setItem("qbgen-theme", isDark ? "dark" : "light")
+  }, [isDark, mounted])
 
   const isActive = (path: string) => pathname === path
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
-      <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="text-3xl font-black text-gray-900 dark:text-white transition-colors duration-300"
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-foreground/10">
+      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <Link
+          href="/"
+          className="font-serif text-2xl font-medium text-foreground tracking-tight hover:text-accent transition-colors"
         >
-          <Link href="/" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-            qbgen
-          </Link>
-        </motion.div>
+          qbgen
+        </Link>
 
-        <div className="flex items-center gap-6">
-          <Link 
-            href="/unique-clues"
-            className={`text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-300 font-medium ${
-              isActive('/unique-clues') ? 'text-blue-600 dark:text-blue-400 font-semibold' : ''
-            }`}
+        <div className="flex items-center gap-8">
+          <ul className="hidden sm:flex items-center gap-6 text-sm">
+            {links.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className={`relative py-1 transition-colors ${
+                    isActive(link.href)
+                      ? "text-foreground underline underline-offset-[10px] decoration-accent decoration-2"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => setIsDark((v) => !v)}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className="h-9 w-9 inline-flex items-center justify-center text-foreground hover:bg-foreground/5 transition-colors"
           >
-            Unique Clues
-          </Link>
-          <Link 
-            href="/set-carding"
-            className={`text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-300 font-medium ${
-              isActive('/set-carding') ? 'text-blue-600 dark:text-blue-400 font-semibold' : ''
-            }`}
-          >
-            Set Carding
-          </Link>
-          <Link 
-            href="/about"
-            className={`text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-300 font-medium ${
-              isActive('/about') ? 'text-blue-600 dark:text-blue-400 font-semibold' : ''
-            }`}
-          >
-            About
-          </Link>
-          <div className="flex items-center gap-2">
-            <Sun className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-            <Switch
-              checked={isDark}
-              onCheckedChange={setIsDark}
-              className="data-[state=checked]:bg-gray-900 data-[state=unchecked]:bg-gray-200"
-            />
-            <Moon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          </div>
+            {mounted && isDark ? (
+              <Sun className="h-4 w-4" strokeWidth={1.75} />
+            ) : (
+              <Moon className="h-4 w-4" strokeWidth={1.75} />
+            )}
+          </button>
         </div>
       </div>
     </nav>
   )
-} 
+}
