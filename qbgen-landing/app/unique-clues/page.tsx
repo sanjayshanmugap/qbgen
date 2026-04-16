@@ -13,6 +13,7 @@ export default function UniqueCluesPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [difficulties, setDifficulties] = useState<string[]>([]);
   const [similarityThreshold, setSimilarityThreshold] = useState(0.7);
+  const [minDifficulty, setMinDifficulty] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [clues, setClues] = useState<any[]>([]);
   const [editingClue, setEditingClue] = useState<number | null>(null);
@@ -122,6 +123,7 @@ export default function UniqueCluesPage() {
         throw new Error(data.error);
       }
       setClues(data);
+      setMinDifficulty(0);
       setSubmittedAnswerline(answerline.trim());
     } catch (error) {
       console.error("Error fetching clues:", error);
@@ -131,6 +133,13 @@ export default function UniqueCluesPage() {
     }
   };
 
+  const isClueVisible = (clue: { difficulty?: number } | string) => {
+    const difficulty = typeof clue === "object" ? clue?.difficulty : undefined;
+    return typeof difficulty !== "number" || difficulty >= minDifficulty;
+  };
+
+  const visibleClues = clues.filter(isClueVisible);
+
   const handleExportCards = async () => {
     setErrorMessage("");
     try {
@@ -138,7 +147,7 @@ export default function UniqueCluesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clues: clues.map(clue => clue.text || clue),
+          clues: visibleClues.map(clue => clue.text || clue),
           answerline: submittedAnswerline
         }),
       });
@@ -178,16 +187,23 @@ export default function UniqueCluesPage() {
   };
 
   const handleSaveEdit = () => {
-    if (editingClue !== null) {
-      const updatedClues = [...clues];
-      updatedClues[editingClue] = {
-        ...updatedClues[editingClue],
-        text: editedClueText
-      };
-      setClues(updatedClues);
+    if (editingClue === null) return;
+
+    if (editedClueText.trim() === "") {
+      setClues(clues.filter((_, i) => i !== editingClue));
       setEditingClue(null);
       setEditedClueText("");
+      return;
     }
+
+    const updatedClues = [...clues];
+    updatedClues[editingClue] = {
+      ...updatedClues[editingClue],
+      text: editedClueText,
+    };
+    setClues(updatedClues);
+    setEditingClue(null);
+    setEditedClueText("");
   };
 
   const handleCancelEdit = () => {
@@ -378,20 +394,55 @@ export default function UniqueCluesPage() {
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8 pb-4 border-b border-foreground/15">
               <div>
                 <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                  Generated · {clues.length}
+                  Generated · {visibleClues.length}
+                  {visibleClues.length !== clues.length && (
+                    <span className="normal-case tracking-normal ml-1">
+                      of {clues.length} total
+                    </span>
+                  )}
                 </div>
                 <h2 className="font-serif text-3xl text-foreground">
                   {submittedAnswerline || "Clues"}
                 </h2>
               </div>
-              <Button onClick={handleExportCards} variant="outline">
+              <Button
+                onClick={handleExportCards}
+                variant="outline"
+                disabled={visibleClues.length === 0}
+              >
                 <Download className="h-4 w-4" />
                 Export cards
               </Button>
             </div>
 
+            <div className="mb-8">
+              <div className="flex items-baseline justify-between mb-2">
+                <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Minimum difficulty
+                </label>
+                <span className="font-mono text-sm text-foreground">
+                  {minDifficulty.toFixed(1)} / 10
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="0.1"
+                value={minDifficulty}
+                onChange={(e) => setMinDifficulty(parseFloat(e.target.value))}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                <span>Show all</span>
+                <span>Hardest only</span>
+              </div>
+            </div>
+
             <ul className="divide-y divide-foreground/15">
-              {clues.map((clue, index) => (
+              {clues.map((clue, index) => {
+                if (!isClueVisible(clue)) return null;
+                return (
                 <li key={index} className="group py-5 hover:bg-foreground/[0.03] -mx-2 px-2 transition-colors">
                   {editingClue === index ? (
                     <div className="space-y-3">
@@ -415,8 +466,16 @@ export default function UniqueCluesPage() {
                   ) : (
                     <div className="flex items-start gap-4">
                       <p className="text-foreground/90 flex-1 leading-relaxed">
-                        {clue.text || clue}
+                        {typeof clue === "string" ? clue : clue.text}
                       </p>
+                      {typeof clue?.difficulty === "number" && (
+                        <span
+                          className="font-mono text-xs text-muted-foreground whitespace-nowrap mt-1"
+                          title={`Averaged across ${clue.cluster_size ?? 1} clue${clue.cluster_size === 1 ? "" : "s"}`}
+                        >
+                          {clue.difficulty.toFixed(1)} / 10
+                        </span>
+                      )}
                       <div className="flex opacity-60 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="ghost"
@@ -439,7 +498,8 @@ export default function UniqueCluesPage() {
                     </div>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         )}
