@@ -1,6 +1,7 @@
 Flask==3.1.0
 Flask_Cors==5.0.0
 genanki==0.13.1
+gunicorn==23.0.0
 numpy==1.26.4
 requests==2.32.3
 spacy==3.7.5

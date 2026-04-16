@@ -22,3 +22,38 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python (backend/)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Next.js (root-level stray build artifacts)
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Coverage / test output
+coverage/
+.nyc_output/
+
+# OS
+Thumbs.db

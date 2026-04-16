@@ -45,6 +45,7 @@ service.yaml
 *~
 
 # Specific to qbgen-landing
+qbgen-landing/
 qbgen-landing/node_modules/
 qbgen-landing/.next/
 qbgen-landing/.pnpm/

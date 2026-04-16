@@ -1,47 +1,96 @@
-# import json
-import requests
-import re
-from flask import Flask, request, jsonify, send_file, send_from_directory
-import numpy as np
-from collections import defaultdict
-import spacy
-import genanki
+import logging
 import os
+import re
 import tempfile
+import time
+import uuid
+from collections import OrderedDict
+
+import genanki
+import numpy as np
+import requests
+import spacy
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
+from requests import RequestException
 from sentence_transformers import SentenceTransformer
 
 app = Flask(__name__)
-CORS(app)
 
-# Use sentence-transformers to get the same Universal Sentence Encoder model
-# Load from local model to avoid Hugging Face rate limits
-model_path = os.path.join(os.path.dirname(__file__), 'models', 'all-MiniLM-L6-v2')
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("qbgen-api")
+
+REQUEST_TIMEOUT = (
+    float(os.environ.get("UPSTREAM_CONNECT_TIMEOUT_SECONDS", "5")),
+    float(os.environ.get("UPSTREAM_READ_TIMEOUT_SECONDS", "30")),
+)
+SPACY_BATCH_SIZE = int(os.environ.get("SPACY_BATCH_SIZE", "32"))
+EMBED_BATCH_SIZE = int(os.environ.get("EMBED_BATCH_SIZE", "64"))
+SIMILARITY_SEARCH_BATCH_SIZE = int(os.environ.get("SIMILARITY_SEARCH_BATCH_SIZE", "256"))
+EMBED_CACHE_SIZE = int(os.environ.get("EMBED_CACHE_SIZE", "10000"))
+QBREADER_API_BASE = "https://qbreader.org/api"
+
+
+def parse_cors_origins():
+    raw_origins = os.environ.get("CORS_ORIGINS", "*").strip()
+    if not raw_origins or raw_origins == "*":
+        return "*"
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+
+CORS(app, resources={r"/api/*": {"origins": parse_cors_origins()}})
+http_session = requests.Session()
+
+# Load models eagerly so warm requests stay fast.
+model_path = os.path.join(os.path.dirname(__file__), "models", "all-MiniLM-L6-v2")
 if os.path.exists(model_path):
-    print("Loading model from local path:", model_path)
+    logger.info("Loading embedding model from local path: %s", model_path)
     embed = SentenceTransformer(model_path)
 else:
-    print("Local model not found, downloading from Hugging Face...")
-    embed = SentenceTransformer('all-MiniLM-L6-v2')
-nlp = spacy.load('en_core_web_sm')
+    logger.info("Local embedding model not found, downloading from Hugging Face.")
+    embed = SentenceTransformer("all-MiniLM-L6-v2")
+nlp = spacy.load("en_core_web_sm")
+embedding_cache = OrderedDict()
+
+
+def json_error(message, status_code):
+    return jsonify({"error": message}), status_code
+
+
+def log_stage(request_id, stage_name, started_at, **metrics):
+    duration_ms = int((time.perf_counter() - started_at) * 1000)
+    metrics_output = " ".join(f"{key}={value}" for key, value in metrics.items())
+    if metrics_output:
+        logger.info("[%s] %s duration_ms=%s %s", request_id, stage_name, duration_ms, metrics_output)
+    else:
+        logger.info("[%s] %s duration_ms=%s", request_id, stage_name, duration_ms)
+    return duration_ms
+
+
+def qbreader_get(endpoint, params=None):
+    response = http_session.get(
+        f"{QBREADER_API_BASE}/{endpoint}",
+        params=params,
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
 
 def get_frequency_list(subcategory, level="high-school", limit=5):
-    url = "https://qbreader.org/api/frequency-list"
     params = {
         "subcategory": subcategory,
         "level": level,
-        "limit": limit
+        "limit": limit,
     }
-    response = requests.get(url, params=params)
-    return response.json()
+    return qbreader_get("frequency-list", params=params)
+
 
 def get_all_sets():
-    url = "https://qbreader.org/api/set-list"
-    response = requests.get(url)
-    return response.json()
+    return qbreader_get("set-list")
+
 
 def get_set_questions(set_name, categories="", difficulties=""):
-    url = "https://qbreader.org/api/query"
     params = {
         "queryString": "",
         "questionType": "tossup",
@@ -53,13 +102,12 @@ def get_set_questions(set_name, categories="", difficulties=""):
         "difficulties": difficulties,
         "categories": categories,
         "maxReturnLength": 10000,
-        "setName": set_name
+        "setName": set_name,
     }
-    response = requests.get(url, params=params)
-    return response.json()
+    return qbreader_get("query", params=params)
+
 
 def get_set_questions_by_answer(set_name, answer, categories="", difficulties=""):
-    url = "https://qbreader.org/api/query"
     params = {
         "queryString": answer,
         "questionType": "tossup",
@@ -71,15 +119,25 @@ def get_set_questions_by_answer(set_name, answer, categories="", difficulties=""
         "difficulties": difficulties,
         "categories": categories,
         "maxReturnLength": 10000,
-        "setName": set_name
+        "setName": set_name,
     }
-    response = requests.get(url, params=params)
-    return response.json()
+    return qbreader_get("query", params=params)
 
-def query_db(queryString, questionType="tossup", searchType="answer", exactPhrase=True, ignoreWordOrder=False, regex=True, randomize=False, difficulties="", categories="", maxReturnLength=10000):
-    url = "https://qbreader.org/api/query"
+
+def query_db(
+    query_string,
+    questionType="tossup",
+    searchType="answer",
+    exactPhrase=True,
+    ignoreWordOrder=False,
+    regex=True,
+    randomize=False,
+    difficulties="",
+    categories="",
+    maxReturnLength=10000,
+):
     params = {
-        "queryString": queryString,
+        "queryString": query_string,
         "questionType": questionType,
         "searchType": searchType,
         "exactPhrase": exactPhrase,
@@ -88,27 +146,28 @@ def query_db(queryString, questionType="tossup", searchType="answer", exactPhras
         "randomize": randomize,
         "difficulties": difficulties,
         "categories": categories,
-        "maxReturnLength": maxReturnLength
+        "maxReturnLength": maxReturnLength,
     }
-    response = requests.get(url, params=params)
-    return response.json()
+    return qbreader_get("query", params=params)
+
 
 def clean_text(text):
     patterns = [
         (r"<b>", ""), (r"</b>", ""), (r"<u>", ""), (r"</u>", ""),
         (r"<i>", ""), (r"</i>", ""), (r"\(\*\)", ""), (r"\[\*\]", ""), (r"\(\+\)", ""),
         (r"For 10 points,", ""), (r", for 10 points,", ""),
-        (r"For ten points,", ""), (r"FTP,", ""), 
+        (r"For ten points,", ""), (r"FTP,", ""),
         (r"Description acceptable. ", ""), (r"read answerline carefully. ", ""),
         (r"Note to players: ", ""), (r"Note to moderator: ", ""),
         (r"Read the answerline carefully. ", ""), (r"Original-language term required. ", ""),
         (r"Two answers required.", ""), (r"specific word required.", ""),
-        (r'\(".*?"\)', ""), (r'\(".*?"\)', "")
+        (r'\(".*?"\)', ""), (r'\(".*?"\)', ""),
     ]
     for pattern, replacement in patterns:
         text = re.sub(pattern, replacement, text)
     text = text.replace("  ", " ").replace(" ,", ",").replace(" .", ".").replace("et al.", "et al")
     return text
+
 
 def clean_answer(answer):
     if "<b>" in answer:
@@ -123,189 +182,317 @@ def clean_answer(answer):
         answer = answer.replace("<i>", "")
     if "</i>" in answer:
         answer = answer.replace("</i>", "")
-    pattern = r'^[^[(]*'
+    pattern = r"^[^[(]*"
     cleaned_answer = re.findall(pattern, answer)
     return cleaned_answer[0].strip()
 
-def semantic_similarity(sentences):
-    """Calculate semantic similarity using sentence transformers (equivalent to Universal Sentence Encoder)"""
+
+def cache_embedding(sentence, embedding):
+    embedding_cache[sentence] = embedding
+    embedding_cache.move_to_end(sentence)
+    while len(embedding_cache) > EMBED_CACHE_SIZE:
+        embedding_cache.popitem(last=False)
+
+
+def get_sentence_embeddings(sentences):
+    """Return normalized embeddings, reusing cached values across requests."""
     if len(sentences) == 0:
         return np.array([])
-    
-    # Get embeddings
-    embeddings = embed.encode(sentences)
-    
-    # Calculate cosine similarity matrix
-    similarity_matrix = np.inner(embeddings, embeddings)
-    
-    # Normalize to get proper cosine similarity
-    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    similarity_matrix = similarity_matrix / (norms * norms.T)
-    
-    return similarity_matrix
+
+    missing_sentences = []
+    seen_missing = set()
+
+    for sentence in sentences:
+        cached_embedding = embedding_cache.get(sentence)
+        if cached_embedding is not None:
+            embedding_cache.move_to_end(sentence)
+            continue
+
+        if sentence not in seen_missing:
+            missing_sentences.append(sentence)
+            seen_missing.add(sentence)
+
+    if missing_sentences:
+        missing_embeddings = embed.encode(
+            missing_sentences,
+            batch_size=EMBED_BATCH_SIZE,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        for sentence, embedding in zip(missing_sentences, missing_embeddings):
+            cache_embedding(sentence, embedding.astype(np.float32, copy=False))
+
+    return np.stack([embedding_cache[sentence] for sentence in sentences]).astype(np.float32, copy=False)
+
+
+def build_similarity_graph(embeddings, similarity_threshold):
+    """Build an undirected similarity graph using blockwise thresholded search."""
+    clue_count = len(embeddings)
+    adjacency_list = [set() for _ in range(clue_count)]
+
+    for row_start in range(0, clue_count, SIMILARITY_SEARCH_BATCH_SIZE):
+        row_end = min(row_start + SIMILARITY_SEARCH_BATCH_SIZE, clue_count)
+        row_embeddings = embeddings[row_start:row_end]
+
+        for col_start in range(row_start, clue_count, SIMILARITY_SEARCH_BATCH_SIZE):
+            col_end = min(col_start + SIMILARITY_SEARCH_BATCH_SIZE, clue_count)
+            col_embeddings = embeddings[col_start:col_end]
+            similarity_block = np.inner(row_embeddings, col_embeddings)
+
+            matching_rows, matching_cols = np.where(similarity_block > similarity_threshold)
+
+            for local_row_idx, local_col_idx in zip(matching_rows, matching_cols):
+                source_idx = row_start + local_row_idx
+                target_idx = col_start + local_col_idx
+
+                if source_idx >= target_idx:
+                    continue
+
+                adjacency_list[source_idx].add(target_idx)
+                adjacency_list[target_idx].add(source_idx)
+
+    return adjacency_list
+
+
+def connected_components(adjacency_list):
+    """Return connected components for an undirected adjacency list."""
+    components = []
+    visited = np.zeros(len(adjacency_list), dtype=bool)
+
+    for start_idx in range(len(adjacency_list)):
+        if visited[start_idx]:
+            continue
+
+        stack = [start_idx]
+        component = []
+        visited[start_idx] = True
+
+        while stack:
+            current_idx = stack.pop()
+            component.append(current_idx)
+            neighbors = adjacency_list[current_idx]
+
+            for neighbor_idx in neighbors:
+                if not visited[neighbor_idx]:
+                    visited[neighbor_idx] = True
+                    stack.append(neighbor_idx)
+
+        components.append(sorted(component))
+
+    return components
+
+
+def select_cluster_representative(component, embeddings):
+    """Choose the most central clue in a cluster."""
+    if len(component) == 1:
+        return component[0]
+
+    component_indices = np.array(component)
+    component_embeddings = embeddings[component_indices]
+    component_similarity = np.inner(component_embeddings, component_embeddings)
+    np.fill_diagonal(component_similarity, 0.0)
+    mean_similarity = component_similarity.sum(axis=1) / (len(component) - 1)
+    best_local_idx = int(np.argmax(mean_similarity))
+    return component[best_local_idx]
+
 
 def cluster_and_select_clues(clues, similarity_threshold=0.7):
-    """Original clustering logic with semantic similarity"""
+    """Cluster semantically similar clues and keep the best representatives."""
     filtered_clues = [clue.lstrip() for clue in clues if len(clue.lstrip()) >= 30]
-    
     if len(filtered_clues) == 0:
         return []
-    
-    similarity_matrix = semantic_similarity(filtered_clues)
-    clusters = defaultdict(list)
 
-    for i in range(len(filtered_clues)):
-        for j in range(i + 1, len(filtered_clues)):
-            if similarity_matrix[i, j] > similarity_threshold:
-                clusters[i].append(j)
-                clusters[j].append(i)
+    embeddings = get_sentence_embeddings(filtered_clues)
+    adjacency_list = build_similarity_graph(embeddings, similarity_threshold)
+    components = connected_components(adjacency_list)
 
-    representative_count = defaultdict(int)
-    processed = set()
+    ranked_components = []
+    for component in components:
+        representative = select_cluster_representative(component, embeddings)
+        ranked_components.append((component, representative))
 
-    for idx in range(len(filtered_clues)):
-        if idx not in processed:
-            cluster = [idx] + clusters[idx]
-            representative = cluster[0]
-            representative_count[representative] = len(cluster)
-            processed.update(cluster)
-
-    ranked_clues = sorted(representative_count.items(), key=lambda x: x[1], reverse=True)
-    unique_clues = [filtered_clues[idx] for idx, _ in ranked_clues]
-
-    return unique_clues
+    ranked_components.sort(key=lambda item: (-len(item[0]), item[1]))
+    representatives = [representative for _, representative in ranked_components]
+    return [filtered_clues[idx] for idx in representatives]
 
 
-
-@app.route('/api/process_clues', methods=['POST'])
-def process_clues():
-    data = request.json
-    answer = data.get('answer', '')
-    categories = data.get('categories', '')
-    difficulties = data.get('difficulties', '')
-    similarity_threshold = float(data.get('similarity_threshold', 0.7))
-    target_answer = answer.lower()
-    tossups = query_db(target_answer, categories=categories, difficulties=difficulties)["tossups"]
-    
+def split_questions_into_sentences(questions):
     clues = []
-    for question_data in tossups["questionArray"]:
-        question = clean_text(question_data["question"])
-        answer = clean_answer(question_data["answer"]).lower()
-        
-        if answer == target_answer:
-            doc = nlp(question)
-            sentence_tokens = [sent.text for sent in doc.sents if sent.text.strip()]
-            clues.extend(sentence_tokens)
-    
-    clues_list = list(set(clues))
-    unique_clues = cluster_and_select_clues(clues_list, similarity_threshold)
-    return jsonify(unique_clues)
+    for doc in nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE):
+        clues.extend(sent.text for sent in doc.sents if sent.text.strip())
+    return clues
 
-@app.route('/api/get_sets', methods=['GET'])
+
+@app.route("/api/process_clues", methods=["POST"])
+def process_clues():
+    request_id = uuid.uuid4().hex[:8]
+    request_started = time.perf_counter()
+    data = request.get_json(silent=True) or {}
+    answer = data.get("answer", "").strip()
+    categories = data.get("categories", "")
+    difficulties = data.get("difficulties", "")
+
+    if not answer:
+        return json_error("Answer is required.", 400)
+
+    try:
+        similarity_threshold = float(data.get("similarity_threshold", 0.7))
+    except (TypeError, ValueError):
+        return json_error("similarity_threshold must be a number.", 400)
+
+    target_answer = answer.lower()
+
+    try:
+        query_started = time.perf_counter()
+        tossups = query_db(target_answer, categories=categories, difficulties=difficulties).get("tossups", {})
+        question_array = tossups.get("questionArray", [])
+        log_stage(request_id, "qbreader_query", query_started, tossups=len(question_array))
+
+        filter_started = time.perf_counter()
+        matching_questions = []
+        for question_data in question_array:
+            question = clean_text(question_data["question"])
+            question_answer = clean_answer(question_data["answer"]).lower()
+            if question_answer == target_answer:
+                matching_questions.append(question)
+        log_stage(request_id, "filter_matching_questions", filter_started, matches=len(matching_questions))
+
+        split_started = time.perf_counter()
+        clues = split_questions_into_sentences(matching_questions)
+        log_stage(request_id, "sentence_split", split_started, clue_count=len(clues))
+
+        dedupe_started = time.perf_counter()
+        clue_candidates = list(dict.fromkeys(clues))
+        log_stage(request_id, "dedupe_clues", dedupe_started, unique_candidates=len(clue_candidates))
+
+        cluster_started = time.perf_counter()
+        unique_clues = cluster_and_select_clues(clue_candidates, similarity_threshold)
+        log_stage(request_id, "cluster_clues", cluster_started, returned=len(unique_clues))
+        log_stage(request_id, "process_clues_total", request_started, answer=target_answer)
+        return jsonify(unique_clues)
+    except RequestException as exc:
+        logger.exception("[%s] qbreader request failed", request_id)
+        return json_error(f"QBReader request failed: {exc}", 502)
+    except Exception as exc:
+        logger.exception("[%s] process_clues failed", request_id)
+        return json_error(f"Failed to process clues: {exc}", 500)
+
+
+@app.route("/api/get_sets", methods=["GET"])
 def get_sets_endpoint():
+    request_id = uuid.uuid4().hex[:8]
+    request_started = time.perf_counter()
     try:
         sets_data = get_all_sets()
-        return jsonify(sets_data.get('setList', []))
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        log_stage(request_id, "get_sets_total", request_started, set_count=len(sets_data.get("setList", [])))
+        return jsonify(sets_data.get("setList", []))
+    except RequestException as exc:
+        logger.exception("[%s] get_sets failed", request_id)
+        return json_error(f"QBReader request failed: {exc}", 502)
+    except Exception as exc:
+        logger.exception("[%s] get_sets failed", request_id)
+        return json_error(str(exc), 500)
 
-@app.route('/api/process_set_clues', methods=['POST'])
+
+@app.route("/api/process_set_clues", methods=["POST"])
 def process_set_clues():
-    data = request.json
-    set_name = data.get('set_name', '')
-    categories = data.get('categories', '')
-    
+    request_id = uuid.uuid4().hex[:8]
+    request_started = time.perf_counter()
+    data = request.get_json(silent=True) or {}
+    set_name = data.get("set_name", "").strip()
+    categories = data.get("categories", "")
+
+    if not set_name:
+        return json_error("set_name is required.", 400)
+
     try:
+        query_started = time.perf_counter()
         questions_data = get_set_questions(set_name, categories, "")
-        
         tossups = questions_data.get("tossups", {})
-        
+        question_array = tossups.get("questionArray", [])
+        log_stage(request_id, "set_query", query_started, tossups=len(question_array))
+
+        prepare_started = time.perf_counter()
+        questions = []
+        answers = []
+        for question_data in question_array:
+            questions.append(clean_text(question_data["question"]))
+            answers.append(clean_answer(question_data["answer"]))
+        log_stage(request_id, "prepare_set_questions", prepare_started, prepared=len(questions))
+
+        split_started = time.perf_counter()
+        docs = list(nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE))
+        log_stage(request_id, "set_sentence_split", split_started, prepared=len(docs))
+
+        build_started = time.perf_counter()
         clues_with_answers = []
-        for question_data in tossups.get("questionArray", []):
-            question = clean_text(question_data["question"])
-            answer = clean_answer(question_data["answer"])
-            
-            doc = nlp(question)
-            sentence_tokens = [sent.text for sent in doc.sents if sent.text.strip()]
-            
-            # Add each sentence as a clue with its corresponding answerline
-            for sentence in sentence_tokens:
-                clues_with_answers.append({
-                    'text': sentence,
-                    'answerline': answer
-                })
-        
-        # Remove duplicates based on text content
+        for answerline, doc in zip(answers, docs):
+            for sentence in doc.sents:
+                if sentence.text.strip():
+                    clues_with_answers.append({
+                        "text": sentence.text,
+                        "answerline": answerline,
+                    })
+        log_stage(request_id, "build_set_clues", build_started, clues=len(clues_with_answers))
+
+        dedupe_started = time.perf_counter()
         unique_clues = []
         seen_texts = set()
         for clue in clues_with_answers:
-            if clue['text'] not in seen_texts:
+            if clue["text"] not in seen_texts:
                 unique_clues.append(clue)
-                seen_texts.add(clue['text'])
-        
+                seen_texts.add(clue["text"])
+        log_stage(request_id, "dedupe_set_clues", dedupe_started, returned=len(unique_clues))
+        log_stage(request_id, "process_set_clues_total", request_started, set_name=set_name)
         return jsonify(unique_clues)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except RequestException as exc:
+        logger.exception("[%s] process_set_clues failed", request_id)
+        return json_error(f"QBReader request failed: {exc}", 502)
+    except Exception as exc:
+        logger.exception("[%s] process_set_clues failed", request_id)
+        return json_error(str(exc), 500)
 
-@app.route('/health')
+
+@app.route("/health")
 def health_check():
-    return jsonify({'status': 'healthy', 'service': 'qbgen-app'}), 200
+    return jsonify({"status": "healthy", "service": "qbgen-api"}), 200
 
-@app.route('/')
-def serve_frontend():
-    return send_from_directory('/app/static', 'index.html')
 
-@app.route('/<path:path>')
-def serve_static(path):
-    # Skip API routes - let them be handled by their specific routes
-    if path.startswith('api/'):
-        return jsonify({'error': 'API endpoint not found'}), 404
-    
-    # Handle Next.js static export routing
-    # First check if the path is a directory (ends with /)
-    if path.endswith('/'):
-        # For directory routes like /about/, serve index.html from that directory
-        try:
-            return send_from_directory(f'/app/static/{path.rstrip("/")}', 'index.html')
-        except:
-            # If directory doesn't exist, fall back to main index.html
-            return send_from_directory('/app/static', 'index.html')
-    
-    # Check if the path is a file (CSS, JS, images, etc.)
-    try:
-        return send_from_directory('/app/static', path)
-    except:
-        # If file not found, check if it's a route that should serve index.html from a subdirectory
-        # Remove trailing slash and try to serve index.html from that directory
-        clean_path = path.rstrip('/')
-        try:
-            return send_from_directory(f'/app/static/{clean_path}', 'index.html')
-        except:
-            # If all else fails, serve main index.html for SPA routing
-            return send_from_directory('/app/static', 'index.html')
+@app.route("/")
+def root():
+    return jsonify({
+        "service": "qbgen-api",
+        "status": "ok",
+        "health": "/health",
+    }), 200
 
-@app.route('/api/generate_apkg', methods=['POST'])
+
+@app.route("/api/generate_apkg", methods=["POST"])
 def generate_apkg():
-    data = request.json
-    clues = data['clues']
-    answerline = data.get('answerline', '')  # This is now optional for Set Carding
-    
-    # Create a unique model ID
-    model_id = 1607392319
+    request_id = uuid.uuid4().hex[:8]
+    request_started = time.perf_counter()
+    data = request.get_json(silent=True) or {}
+    clues = data.get("clues", [])
+    answerline = data.get("answerline", "")
+
+    if not clues:
+        return json_error("clues is required.", 400)
+
     model = genanki.Model(
-        model_id,
-        'Simple Model',
+        1607392319,
+        "Simple Model",
         fields=[
-            {'name': 'Question'},
-            {'name': 'Answer'}
+            {"name": "Question"},
+            {"name": "Answer"},
         ],
         templates=[
             {
-                'name': 'Card 1',
-                'qfmt': '{{Question}}',
-                'afmt': '''{{FrontSide}}
+                "name": "Card 1",
+                "qfmt": "{{Question}}",
+                "afmt": """{{FrontSide}}
                 <hr id="answer">
-                {{Answer}}''',
+                {{Answer}}""",
             },
         ],
         css="""
@@ -316,37 +503,37 @@ def generate_apkg():
             color: black;
             background-color: white;
         }
-        """
+        """,
     )
 
-    # Create a deck with a unique deck ID
     deck = genanki.Deck(
         2059400110,
-        f'{answerline} deck'
+        f"{answerline} deck",
     )
 
-    # Add notes (flashcards) to the deck
     for clue in clues:
-        # Handle both old format (string) and new format (object with text and answerline)
-        if isinstance(clue, dict) and 'text' in clue and 'answerline' in clue:
-            # New format from Set Carding
+        if isinstance(clue, dict) and "text" in clue and "answerline" in clue:
             note = genanki.Note(
                 model=model,
-                fields=[clue['text'], clue['answerline']]
+                fields=[clue["text"], clue["answerline"]],
             )
         else:
-            # Old format from Unique Clues
             note = genanki.Note(
                 model=model,
-                fields=[clue, answerline]
+                fields=[clue, answerline],
             )
         deck.add_note(note)
 
-    # Use a temporary file to store the .apkg file
     with tempfile.NamedTemporaryFile(suffix=".apkg", delete=False) as temp_file:
         genanki.Package(deck).write_to_file(temp_file.name)
         temp_file.seek(0)
-        return send_file(temp_file.name, as_attachment=True, download_name=f'{answerline}_cards.apkg')
+        log_stage(request_id, "generate_apkg_total", request_started, cards=len(clues))
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=f"{answerline}_cards.apkg",
+        )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))

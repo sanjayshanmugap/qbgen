@@ -1,33 +1,89 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: qbgen-app
+  name: qbgen
+  namespace: 469589140740
+  selfLink: /apis/serving.knative.dev/v1/namespaces/469589140740/services/qbgen
+  uid: fd5fcdcd-7702-46d8-be38-b973825f3541
+  resourceVersion: AAZMGj6qdWs
+  generation: 13
+  creationTimestamp: "2025-12-07T00:19:59.017861Z"
+  labels:
+    commit-sha: 114516f09c9c02b8a0b41ba774c9f69745c2e52a
+    gcb-build-id: a163a1d9-03e2-4500-a2d1-68c42ac2456b
+    gcb-trigger-id: 77cd0f75-6dac-4945-9120-a295604fb53a
+    gcb-trigger-region: global
+    managed-by: gcp-cloud-build-deploy-cloud-run
+    cloud.googleapis.com/location: us-central1
   annotations:
+    serving.knative.dev/creator: sanjay.shanmuga@gmail.com
+    serving.knative.dev/lastModifier: sanjay.shanmuga@gmail.com
+    run.googleapis.com/client-name: cloud-console
+    run.googleapis.com/operation-id: 046e0ff7-40cc-4d0c-9035-3db24e661c12
     run.googleapis.com/ingress: all
-    run.googleapis.com/execution-environment: gen2
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/invoker-iam-disabled: "true"
+    run.googleapis.com/maxScale: 2
+    run.googleapis.com/urls: "[\"https://qbgen-469589140740.us-central1.run.app\"\
+      ,\"https://qbgen-esy2cotwia-uc.a.run.app\"]"
 spec:
   template:
     metadata:
+      labels:
+        client.knative.dev/nonce: 71e1cf04-f83d-4513-9749-432e888a04f0
+        commit-sha: 114516f09c9c02b8a0b41ba774c9f69745c2e52a
+        gcb-build-id: a163a1d9-03e2-4500-a2d1-68c42ac2456b
+        gcb-trigger-id: 77cd0f75-6dac-4945-9120-a295604fb53a
+        gcb-trigger-region: global
+        managed-by: gcp-cloud-build-deploy-cloud-run
+        run.googleapis.com/startupProbeType: Default
       annotations:
-        run.googleapis.com/execution-environment: gen2
-        run.googleapis.com/cpu-throttling: "false"
+        autoscaling.knative.dev/maxScale: 2
+        autoscaling.knative.dev/minScale: 0
+        run.googleapis.com/client-name: cloud-console
         run.googleapis.com/startup-cpu-boost: "true"
     spec:
-      containerConcurrency: 80
+      containerConcurrency: 1
       timeoutSeconds: 300
+      serviceAccountName: 469589140740-compute@developer.gserviceaccount.com
       containers:
-      - image: gcr.io/PROJECT_ID/qbgen-app
+      - name: placeholder-1
+        image: us-central1-docker.pkg.dev/intense-digit-480500-i5/cloud-run-source-deploy/qbgen/qbgen:114516f09c9c02b8a0b41ba774c9f69745c2e52a
         ports:
-        - containerPort: 8080
+        - name: http1
+          containerPort: 8080
         resources:
           limits:
-            cpu: "2"
+            cpu: 1000m
             memory: 2Gi
-        env:
-        - name: PORT
-          value: "8080"
-        - name: PYTHONUNBUFFERED
-          value: "1"
-      scaling:
-        minInstanceCount: 0
-        maxInstanceCount: 10
+        startupProbe:
+          timeoutSeconds: 5
+          periodSeconds: 5
+          failureThreshold: 24
+          httpGet:
+            path: /health
+            port: 8080
+  traffic:
+  - percent: 100
+    latestRevision: true
+status:
+  observedGeneration: 13
+  conditions:
+  - type: Ready
+    status: "True"
+    lastTransitionTime: "2026-03-03T08:11:04.483179Z"
+  - type: ConfigurationsReady
+    status: "True"
+    lastTransitionTime: "2026-03-03T08:10:53.642717Z"
+  - type: RoutesReady
+    status: "True"
+    lastTransitionTime: "2026-03-03T08:11:04.321469Z"
+  latestReadyRevisionName: qbgen-00007-tm7
+  latestCreatedRevisionName: qbgen-00007-tm7
+  traffic:
+  - revisionName: qbgen-00007-tm7
+    percent: 100
+    latestRevision: true
+  url: https://qbgen-esy2cotwia-uc.a.run.app
+  address:
+    url: https://qbgen-esy2cotwia-uc.a.run.app
