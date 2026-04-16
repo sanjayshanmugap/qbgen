@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Search, Loader2, Edit3, Trash2, Download, Check, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BackendStatus } from "@/components/BackendStatus";
 import { buildApiUrl } from "@/lib/api";
 
 export default function SetCardingPage() {
@@ -231,8 +232,11 @@ export default function SetCardingPage() {
     <div className="min-h-screen animate-fade-in">
       <div className="max-w-2xl mx-auto px-6 pt-16 pb-24">
         <div className="mb-14">
-          <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground mb-3">
-            Set Carding
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+              Set Carding
+            </div>
+            <BackendStatus isWorking={isLoading} />
           </div>
           <h1 className="font-serif text-5xl md:text-6xl text-foreground mb-4 leading-[1.05]">
             Card an entire set.

@@ -455,6 +455,7 @@ def process_set_clues():
 
 
 @app.route("/health")
+@app.route("/api/health")
 def health_check():
     return jsonify({"status": "healthy", "service": "qbgen-api"}), 200
 
