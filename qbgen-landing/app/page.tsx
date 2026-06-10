@@ -28,6 +28,12 @@ const features = [
       "Download your generated clues as .apkg files for Anki's spaced repetition system.",
   },
   {
+    icon: TrendingUp,
+    title: "Bonus frequency finder",
+    description:
+      "Find the bonus answerlines that most often appear alongside a target answer.",
+  },
+  {
     icon: Zap,
     title: "Question generator",
     description:
@@ -88,6 +94,12 @@ export default function QBGenLanding() {
                 Try set carding
               </Button>
             </Link>
+            <Link href="/bonus-frequency">
+              <Button size="lg" variant="outline" className="min-w-[220px]">
+                <TrendingUp className="h-4 w-4" />
+                Find bonus links
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
@@ -121,7 +133,7 @@ export default function QBGenLanding() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-12 md:gap-10">
+          <div className="grid md:grid-cols-4 gap-12 md:gap-10">
             {features.map((f) => (
               <div key={f.title} className="relative">
                 <f.icon className="h-5 w-5 text-foreground mb-5" strokeWidth={1.5} />
@@ -223,6 +235,12 @@ export default function QBGenLanding() {
               <Button size="lg" variant="outline" className="min-w-[220px]">
                 <Download className="h-4 w-4" />
                 Try set carding
+              </Button>
+            </Link>
+            <Link href="/bonus-frequency">
+              <Button size="lg" variant="outline" className="min-w-[220px]">
+                <TrendingUp className="h-4 w-4" />
+                Find bonus links
               </Button>
             </Link>
           </div>

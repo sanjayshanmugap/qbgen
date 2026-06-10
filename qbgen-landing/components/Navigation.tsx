@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation"
 const links = [
   { href: "/unique-clues", label: "Unique Clues" },
   { href: "/set-carding", label: "Set Carding" },
+  { href: "/bonus-frequency", label: "Bonus Frequency" },
   { href: "/about", label: "About" },
 ]
 

@@ -107,10 +107,10 @@ def get_all_sets():
     return qbreader_get("set-list")
 
 
-def get_set_questions(set_name, categories="", difficulties=""):
+def get_set_questions(set_name, categories="", difficulties="", question_type="tossup"):
     params = {
         "queryString": "",
-        "questionType": "tossup",
+        "questionType": question_type,
         "searchType": "answer",
         "exactPhrase": False,
         "ignoreWordOrder": False,
@@ -204,6 +204,12 @@ def clean_answer(answer):
     return cleaned_answer[0].strip()
 
 
+VALID_BONUS_MODIFIERS = {"e", "m", "h"}
+BONUS_PART_LABELS = {
+    "e": "Easy",
+    "m": "Medium",
+    "h": "Hard",
+}
 def cache_embedding(sentence, embedding):
     embedding_cache[sentence] = embedding
     embedding_cache.move_to_end(sentence)
@@ -376,6 +382,231 @@ def split_tossups_into_clue_records(tossup_records):
     return records
 
 
+def split_tossups_into_set_clues(tossup_records):
+    """Split set tossups into cardable sentence clues with answers."""
+    clues = []
+    questions = [tossup["question"] for tossup in tossup_records]
+
+    for tossup, doc in zip(tossup_records, nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE)):
+        question_length = max(len(tossup["question"]), 1)
+        for sentence in doc.sents:
+            if not sentence.text.strip():
+                continue
+            center = (sentence.start_char + sentence.end_char) / 2
+            position_ratio = min(max(center / question_length, 0.0), 1.0)
+            difficulty = compute_clue_difficulty({
+                "tossup_difficulty": tossup.get("difficulty"),
+                "position_ratio": position_ratio,
+            })
+            clues.append({
+                "text": sentence.text,
+                "answerline": tossup["answerline"],
+                "difficulty": round(difficulty, 2),
+                "type": "tossup",
+            })
+    return clues
+
+
+def normalize_bonus_modifiers(bonus):
+    """Return reliable per-part bonus modifiers, or None for unlabeled bonuses."""
+    raw_modifiers = bonus.get("difficultyModifiers")
+    parts = bonus.get("parts_sanitized") or bonus.get("parts") or []
+
+    if not raw_modifiers or not isinstance(raw_modifiers, list):
+        return None
+    if len(raw_modifiers) != len(parts):
+        return None
+
+    modifiers = []
+    for modifier in raw_modifiers:
+        if not isinstance(modifier, str):
+            return None
+        modifier = modifier.strip().lower()
+        if modifier not in VALID_BONUS_MODIFIERS:
+            return None
+        modifiers.append(modifier)
+    return modifiers
+
+
+def part_display_label(part_idx, modifier, modifiers):
+    if modifiers is None:
+        return f"Part {part_idx + 1}"
+    return BONUS_PART_LABELS.get(modifier, f"Part {part_idx + 1}")
+
+
+def clean_optional_text(value):
+    if not isinstance(value, str):
+        return ""
+    return clean_text(value).strip()
+
+
+def clean_optional_answer(value):
+    if not isinstance(value, str):
+        return ""
+    return clean_answer(value)
+
+
+def normalize_answer_key(value):
+    answer = clean_optional_answer(value)
+    answer = re.sub(r"^answer\s*:\s*", "", answer, flags=re.IGNORECASE).strip()
+    answer = re.sub(r"\s+", " ", answer)
+    return answer.casefold()
+
+
+def bonus_part_example(bonus, parts, target_idx, associated_idx, modifiers):
+    target_modifier = modifiers[target_idx] if modifiers else None
+    associated_modifier = modifiers[associated_idx] if modifiers else None
+    return {
+        "part": parts[associated_idx],
+        "target_part": parts[target_idx],
+        "set": (bonus.get("set") or {}).get("name"),
+        "packet": (bonus.get("packet") or {}).get("name"),
+        "difficulty": bonus.get("difficulty"),
+        "category": bonus.get("category"),
+        "subcategory": bonus.get("subcategory") or bonus.get("alternate_subcategory"),
+        "part_modifier": associated_modifier,
+        "part_label": part_display_label(associated_idx, associated_modifier, modifiers),
+        "target_part_modifier": target_modifier,
+        "target_part_label": part_display_label(target_idx, target_modifier, modifiers),
+    }
+
+
+def aggregate_bonus_frequency(bonus_records, target_answer, example_limit=3):
+    target_key = normalize_answer_key(target_answer)
+    frequencies = {}
+    total_matching_bonuses = 0
+
+    for bonus in bonus_records:
+        answers = [
+            clean_optional_answer(answer)
+            for answer in (bonus.get("answers_sanitized") or bonus.get("answers", []))
+        ]
+        parts = [
+            clean_optional_text(part)
+            for part in (bonus.get("parts_sanitized") or bonus.get("parts", []))
+        ]
+        part_count = min(len(parts), len(answers))
+        if part_count == 0:
+            continue
+
+        target_indices = [
+            idx for idx in range(part_count)
+            if answers[idx] and normalize_answer_key(answers[idx]) == target_key
+        ]
+        if not target_indices:
+            continue
+
+        total_matching_bonuses += 1
+        modifiers = normalize_bonus_modifiers(bonus)
+        seen_associated_answers = set()
+
+        for associated_idx in range(part_count):
+            if associated_idx in target_indices or not answers[associated_idx]:
+                continue
+
+            associated_key = normalize_answer_key(answers[associated_idx])
+            if not associated_key or associated_key in seen_associated_answers:
+                continue
+            seen_associated_answers.add(associated_key)
+
+            result = frequencies.setdefault(
+                associated_key,
+                {
+                    "answerline": answers[associated_idx],
+                    "frequency": 0,
+                    "examples": [],
+                },
+            )
+            result["frequency"] += 1
+            if len(result["examples"]) < example_limit:
+                result["examples"].append(
+                    bonus_part_example(
+                        bonus,
+                        parts,
+                        target_indices[0],
+                        associated_idx,
+                        modifiers,
+                    )
+                )
+
+    results = list(frequencies.values())
+    results.sort(key=lambda item: (-item["frequency"], item["answerline"].casefold()))
+    return {
+        "answerline": clean_optional_answer(target_answer),
+        "total_matching_bonuses": total_matching_bonuses,
+        "results": results,
+    }
+
+
+def split_bonuses_into_clues(bonus_records):
+    """Build bonus cards from leadins and per-part sentences."""
+    clues = []
+    sentence_sources = []
+
+    for bonus in bonus_records:
+        leadin = clean_optional_text(bonus.get("leadin_sanitized") or bonus.get("leadin"))
+        answers = [
+            clean_optional_answer(answer)
+            for answer in (bonus.get("answers_sanitized") or bonus.get("answers", []))
+        ]
+        parts = [
+            clean_optional_text(part)
+            for part in (bonus.get("parts_sanitized") or bonus.get("parts", []))
+        ]
+
+        if not leadin or not answers or not answers[0] or not parts:
+            continue
+
+        modifiers = normalize_bonus_modifiers(bonus)
+        has_modifiers = modifiers is not None
+
+        clues.append({
+            "text": leadin,
+            "answerline": answers[0],
+            "type": "bonus",
+            "subtype": "leadin",
+            "bonus_number": bonus.get("number"),
+            "category": bonus.get("category"),
+            "has_modifiers": has_modifiers,
+        })
+
+        part_count = min(len(parts), len(answers))
+        for part_idx in range(part_count):
+            modifier = modifiers[part_idx] if modifiers else None
+            if not parts[part_idx] or not answers[part_idx]:
+                continue
+            sentence_sources.append({
+                "text": parts[part_idx],
+                "answerline": answers[part_idx],
+                "part_index": part_idx,
+                "part_label": part_display_label(part_idx, modifier, modifiers),
+                "part_modifier": modifier,
+                "bonus_number": bonus.get("number"),
+                "category": bonus.get("category"),
+                "has_modifiers": has_modifiers,
+            })
+
+    docs = nlp.pipe([source["text"] for source in sentence_sources], batch_size=SPACY_BATCH_SIZE)
+    for source, doc in zip(sentence_sources, docs):
+        for sentence in doc.sents:
+            if not sentence.text.strip():
+                continue
+            clues.append({
+                "text": sentence.text,
+                "answerline": source["answerline"],
+                "type": "bonus",
+                "subtype": "part",
+                "part_index": source["part_index"],
+                "part_label": source["part_label"],
+                "part_modifier": source.get("part_modifier"),
+                "bonus_number": source["bonus_number"],
+                "category": source["category"],
+                "has_modifiers": source["has_modifiers"],
+            })
+
+    return clues
+
+
 @app.route("/api/process_clues", methods=["POST"])
 def process_clues():
     request_id = uuid.uuid4().hex[:8]
@@ -468,58 +699,69 @@ def process_set_clues():
     data = request.get_json(silent=True) or {}
     set_name = data.get("set_name", "").strip()
     categories = data.get("categories", "")
+    question_type = data.get("question_type", "all")
 
     if not set_name:
         return json_error("set_name is required.", 400)
+    if question_type not in {"tossup", "bonus", "all"}:
+        return json_error("question_type must be one of: tossup, bonus, all.", 400)
 
     try:
         query_started = time.perf_counter()
-        questions_data = get_set_questions(set_name, categories, "")
+        questions_data = get_set_questions(set_name, categories, "", question_type=question_type)
         tossups = questions_data.get("tossups", {})
-        question_array = tossups.get("questionArray", [])
-        log_stage(request_id, "set_query", query_started, tossups=len(question_array))
+        bonuses = questions_data.get("bonuses", {})
+        tossup_array = tossups.get("questionArray", [])
+        bonus_array = bonuses.get("questionArray", [])
+        log_stage(
+            request_id,
+            "set_query",
+            query_started,
+            tossups=len(tossup_array),
+            bonuses=len(bonus_array),
+            question_type=question_type,
+        )
 
         prepare_started = time.perf_counter()
-        questions = []
-        answers = []
-        tossup_difficulties = []
-        for question_data in question_array:
-            questions.append(clean_text(question_data["question"]))
-            answers.append(clean_answer(question_data["answer"]))
-            tossup_difficulties.append(question_data.get("difficulty"))
-        log_stage(request_id, "prepare_set_questions", prepare_started, prepared=len(questions))
+        matching_tossups = []
+        if question_type in {"tossup", "all"}:
+            for question_data in tossup_array:
+                matching_tossups.append({
+                    "question": clean_text(question_data["question"]),
+                    "answerline": clean_answer(question_data["answer"]),
+                    "difficulty": question_data.get("difficulty"),
+                })
+        log_stage(request_id, "prepare_set_questions", prepare_started, prepared=len(matching_tossups))
 
         split_started = time.perf_counter()
-        docs = list(nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE))
-        log_stage(request_id, "set_sentence_split", split_started, prepared=len(docs))
-
-        build_started = time.perf_counter()
         clues_with_answers = []
-        for answerline, tossup_difficulty, doc, question_text in zip(answers, tossup_difficulties, docs, questions):
-            question_length = max(len(question_text), 1)
-            for sentence in doc.sents:
-                if not sentence.text.strip():
-                    continue
-                center = (sentence.start_char + sentence.end_char) / 2
-                position_ratio = min(max(center / question_length, 0.0), 1.0)
-                difficulty = compute_clue_difficulty({
-                    "tossup_difficulty": tossup_difficulty,
-                    "position_ratio": position_ratio,
-                })
-                clues_with_answers.append({
-                    "text": sentence.text,
-                    "answerline": answerline,
-                    "difficulty": round(difficulty, 2),
-                })
-        log_stage(request_id, "build_set_clues", build_started, clues=len(clues_with_answers))
+        if question_type in {"tossup", "all"}:
+            clues_with_answers.extend(split_tossups_into_set_clues(matching_tossups))
+        log_stage(
+            request_id,
+            "set_tossup_sentence_split",
+            split_started,
+            clues=len(clues_with_answers),
+        )
+
+        bonus_started = time.perf_counter()
+        if question_type in {"bonus", "all"}:
+            clues_with_answers.extend(split_bonuses_into_clues(bonus_array))
+        log_stage(
+            request_id,
+            "build_bonus_clues",
+            bonus_started,
+            clues=len(clues_with_answers),
+        )
 
         dedupe_started = time.perf_counter()
         unique_clues = []
-        seen_texts = set()
+        seen_clues = set()
         for clue in clues_with_answers:
-            if clue["text"] not in seen_texts:
+            dedupe_key = (clue["text"], clue.get("answerline", ""))
+            if dedupe_key not in seen_clues:
                 unique_clues.append(clue)
-                seen_texts.add(clue["text"])
+                seen_clues.add(dedupe_key)
         log_stage(request_id, "dedupe_set_clues", dedupe_started, returned=len(unique_clues))
         log_stage(request_id, "process_set_clues_total", request_started, set_name=set_name)
         return jsonify(unique_clues)
@@ -528,6 +770,60 @@ def process_set_clues():
         return json_error(f"QBReader request failed: {exc}", 502)
     except Exception as exc:
         logger.exception("[%s] process_set_clues failed", request_id)
+        return json_error(str(exc), 500)
+
+
+@app.route("/api/bonus_frequency", methods=["POST"])
+def bonus_frequency():
+    request_id = uuid.uuid4().hex[:8]
+    request_started = time.perf_counter()
+    data = request.get_json(silent=True) or {}
+    answer = data.get("answer", "").strip()
+    categories = data.get("categories", "")
+    difficulties = data.get("difficulties", "")
+
+    if not answer:
+        return json_error("Answer is required.", 400)
+
+    try:
+        limit = int(data.get("limit", 50))
+    except (TypeError, ValueError):
+        return json_error("limit must be an integer.", 400)
+    limit = max(1, min(limit, 200))
+
+    try:
+        query_started = time.perf_counter()
+        bonuses = query_db(
+            answer,
+            questionType="bonus",
+            searchType="answer",
+            exactPhrase=True,
+            regex=False,
+            categories=categories,
+            difficulties=difficulties,
+            maxReturnLength=10000,
+        ).get("bonuses", {})
+        bonus_array = bonuses.get("questionArray", [])
+        log_stage(request_id, "bonus_frequency_query", query_started, bonuses=len(bonus_array))
+
+        aggregate_started = time.perf_counter()
+        frequency_data = aggregate_bonus_frequency(bonus_array, answer)
+        frequency_data["results"] = frequency_data["results"][:limit]
+        frequency_data["total_queried_bonuses"] = len(bonus_array)
+        log_stage(
+            request_id,
+            "bonus_frequency_aggregate",
+            aggregate_started,
+            matches=frequency_data["total_matching_bonuses"],
+            returned=len(frequency_data["results"]),
+        )
+        log_stage(request_id, "bonus_frequency_total", request_started, answer=answer)
+        return jsonify(frequency_data)
+    except RequestException as exc:
+        logger.exception("[%s] bonus_frequency failed", request_id)
+        return json_error(f"QBReader request failed: {exc}", 502)
+    except Exception as exc:
+        logger.exception("[%s] bonus_frequency failed", request_id)
         return json_error(str(exc), 500)
 
 

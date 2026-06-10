@@ -103,8 +103,33 @@ export default function AboutPage() {
             <ol className="text-foreground/85 leading-relaxed space-y-3 list-decimal pl-5 marker:text-muted-foreground">
               <li>Search for and select a specific quiz bowl <strong>set</strong> from the dropdown.</li>
               <li>Optionally select <strong>categories</strong> to filter the questions.</li>
+              <li>Select whether to generate <strong>tossups</strong>, <strong>bonuses</strong>, or <strong>both</strong>. Both is selected by default.</li>
               <li>Click <strong>Generate Clues</strong> to extract all clues from that set.</li>
+              <li>
+                After generating, filter bonus parts with <strong>Easy</strong>, <strong>Medium</strong>, and/or <strong>Hard</strong> toggles. All three are selected by default.
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Bonus leadins are always included, and older bonuses without Easy / Medium / Hard labels include all parts.
+                </div>
+              </li>
+              <li>For tossup results, use the minimum difficulty slider to narrow clues before export.</li>
               <li>Edit, delete, or export the clues as Anki cards.</li>
+            </ol>
+          </section>
+
+          <section>
+            <h2 className="font-serif text-3xl text-foreground mb-5">
+              <Link
+                href="/bonus-frequency"
+                className="text-accent underline underline-offset-4 decoration-accent/40 hover:decoration-accent"
+              >
+                Bonus frequency finder
+              </Link>
+            </h2>
+            <ol className="text-foreground/85 leading-relaxed space-y-3 list-decimal pl-5 marker:text-muted-foreground">
+              <li>Enter the <strong>main answerline</strong> you want to study.</li>
+              <li>Optionally select <strong>categories</strong> or <strong>difficulties</strong> to narrow QBReader bonus results.</li>
+              <li>Click <strong>Find frequencies</strong> to search bonuses only.</li>
+              <li>Review associated bonus answerlines in descending frequency, with example parts showing where each association came from.</li>
             </ol>
           </section>
 

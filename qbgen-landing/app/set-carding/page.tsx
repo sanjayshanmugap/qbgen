@@ -4,8 +4,30 @@ import { useState, useEffect, useRef } from "react";
 import { Search, Loader2, Edit3, Trash2, Download, Check, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BackendStatus } from "@/components/BackendStatus";
 import { buildApiUrl } from "@/lib/api";
+
+type QuestionType = "tossup" | "bonus" | "all";
+type BonusPart = "easy" | "medium" | "hard";
+type Clue = string | {
+  text: string;
+  answerline?: string;
+  difficulty?: number;
+  type?: "tossup" | "bonus";
+  subtype?: "leadin" | "part";
+  part_label?: string;
+  part_modifier?: "e" | "m" | "h" | null;
+  has_modifiers?: boolean;
+  bonus_number?: number;
+  category?: string;
+};
+
+const BONUS_MODIFIER_TO_PART: Record<"e" | "m" | "h", BonusPart> = {
+  e: "easy",
+  m: "medium",
+  h: "hard",
+};
 
 export default function SetCardingPage() {
   const [setSearchQuery, setSetSearchQuery] = useState("");
@@ -13,9 +35,13 @@ export default function SetCardingPage() {
   const [filteredSets, setFilteredSets] = useState<string[]>([]);
   const [selectedSet, setSelectedSet] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
+  const [generatedSet, setGeneratedSet] = useState("");
+  const [generatedCategories, setGeneratedCategories] = useState<string[]>([]);
+  const [questionType, setQuestionType] = useState<QuestionType>("all");
+  const [bonusParts, setBonusParts] = useState<BonusPart[]>(["easy", "medium", "hard"]);
+  const [generatedQuestionType, setGeneratedQuestionType] = useState<QuestionType>("all");
   const [minDifficulty, setMinDifficulty] = useState(0);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [clues, setClues] = useState<any[]>([]);
+  const [clues, setClues] = useState<Clue[]>([]);
   const [editingClue, setEditingClue] = useState<number | null>(null);
   const [editedClueText, setEditedClueText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -41,6 +67,21 @@ export default function SetCardingPage() {
     "Other Academic",
     "Trash",
   ];
+
+  const questionTypeOptions: { value: QuestionType; label: string }[] = [
+    { value: "tossup", label: "Tossups" },
+    { value: "bonus", label: "Bonuses" },
+    { value: "all", label: "Both" },
+  ];
+
+  const bonusPartOptions: { value: BonusPart; label: string }[] = [
+    { value: "easy", label: "Easy" },
+    { value: "medium", label: "Medium" },
+    { value: "hard", label: "Hard" },
+  ];
+
+  const outlineToggleItemClassName =
+    "w-full border-foreground/20 bg-transparent hover:!bg-transparent hover:!text-foreground hover:border-accent data-[state=on]:bg-accent data-[state=on]:text-accent-foreground data-[state=on]:border-accent";
 
   useEffect(() => {
     const fetchSets = async () => {
@@ -128,6 +169,7 @@ export default function SetCardingPage() {
         body: JSON.stringify({
           set_name: selectedSet,
           categories: categories.join(","),
+          question_type: questionType,
         }),
       });
 
@@ -139,6 +181,10 @@ export default function SetCardingPage() {
         throw new Error(data.error);
       }
       setClues(data);
+      setGeneratedSet(selectedSet);
+      setGeneratedCategories(categories);
+      setGeneratedQuestionType(questionType);
+      setBonusParts(["easy", "medium", "hard"]);
       setMinDifficulty(0);
     } catch (error) {
       console.error("Error fetching clues:", error);
@@ -148,8 +194,28 @@ export default function SetCardingPage() {
     }
   };
 
-  const isClueVisible = (clue: { difficulty?: number } | string) => {
-    const difficulty = typeof clue === "object" ? clue?.difficulty : undefined;
+  const isBonusPartVisible = (clue: Clue) => {
+    if (typeof clue !== "object" || clue.type !== "bonus") {
+      return true;
+    }
+    if (clue.subtype === "leadin") {
+      return true;
+    }
+    if (!clue.has_modifiers || !clue.part_modifier) {
+      return true;
+    }
+    const partValue = BONUS_MODIFIER_TO_PART[clue.part_modifier];
+    return bonusParts.includes(partValue);
+  };
+
+  const isClueVisible = (clue: Clue) => {
+    if (!isBonusPartVisible(clue)) {
+      return false;
+    }
+    if (typeof clue === "object" && clue.type === "bonus") {
+      return true;
+    }
+    const difficulty = typeof clue === "object" ? clue.difficulty : undefined;
     return typeof difficulty !== "number" || difficulty >= minDifficulty;
   };
 
@@ -176,10 +242,20 @@ export default function SetCardingPage() {
       const link = document.createElement("a");
       link.href = url;
 
-      let filename = `${selectedSet}`;
-      if (categories.length > 0) {
-        const categoriesString = categories.join("_");
+      let filename = `${generatedSet || selectedSet}`;
+      if (generatedCategories.length > 0) {
+        const categoriesString = generatedCategories.join("_");
         filename += `_${categoriesString}`;
+      }
+      if (generatedQuestionType !== "all") {
+        filename += generatedQuestionType === "bonus" ? "_bonuses" : "_tossups";
+      }
+      if (generatedQuestionType !== "tossup" && bonusParts.length < bonusPartOptions.length) {
+        const partSegment = bonusPartOptions
+          .map((option) => option.value)
+          .filter((part) => bonusParts.includes(part))
+          .join("-");
+        filename += `_${partSegment}`;
       }
       filename += "_cards.apkg";
 
@@ -205,7 +281,7 @@ export default function SetCardingPage() {
   const handleEditClue = (index: number) => {
     const clue = clues[index];
     setEditingClue(index);
-    setEditedClueText(clue.text || clue);
+    setEditedClueText(getClueText(clue));
   };
 
   const handleSaveEdit = () => {
@@ -219,10 +295,14 @@ export default function SetCardingPage() {
     }
 
     const updatedClues = [...clues];
-    updatedClues[editingClue] = {
-      ...updatedClues[editingClue],
-      text: editedClueText,
-    };
+    const currentClue = updatedClues[editingClue];
+    updatedClues[editingClue] =
+      typeof currentClue === "string"
+        ? editedClueText
+        : {
+            ...currentClue,
+            text: editedClueText,
+          };
     setClues(updatedClues);
     setEditingClue(null);
     setEditedClueText("");
@@ -235,6 +315,30 @@ export default function SetCardingPage() {
 
   const handleDeleteClue = (index: number) => {
     setClues(clues.filter((_, i) => i !== index));
+  };
+
+  const canGenerate = Boolean(selectedSet) && !isLoading;
+  const resultsQuestionType = clues.length > 0 ? generatedQuestionType : questionType;
+  const showDifficultySlider = resultsQuestionType !== "bonus";
+  const showBonusPartFilters = resultsQuestionType !== "tossup";
+
+  const getClueText = (clue: Clue) => (typeof clue === "string" ? clue : clue.text);
+  const getClueMeta = (clue: Clue) => {
+    if (typeof clue !== "object" || clue.type !== "bonus") return null;
+
+    const parts = ["Bonus"];
+    if (clue.subtype === "leadin") {
+      parts.push("Leadin");
+    } else if (clue.part_label) {
+      parts.push(clue.part_label);
+    }
+    if (typeof clue.bonus_number === "number") {
+      parts.push(`#${clue.bonus_number}`);
+    }
+    if (clue.category) {
+      parts.push(clue.category);
+    }
+    return parts.join(" · ");
   };
 
   const categoryLabel =
@@ -345,11 +449,38 @@ export default function SetCardingPage() {
             )}
           </div>
 
+          {/* Question type */}
+          <div>
+            <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+              Question type
+            </label>
+            <ToggleGroup
+              type="single"
+              value={questionType}
+              onValueChange={(value) => {
+                if (value) setQuestionType(value as QuestionType);
+              }}
+              variant="outline"
+              className="grid grid-cols-3 justify-stretch"
+            >
+              {questionTypeOptions.map((option) => (
+                <ToggleGroupItem
+                  key={option.value}
+                  value={option.value}
+                  aria-label={option.label}
+                  className={outlineToggleItemClassName}
+                >
+                  {option.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+
           {/* Generate */}
           <div className="pt-2">
             <Button
               onClick={handleGenerateClues}
-              disabled={!selectedSet || isLoading}
+              disabled={!canGenerate}
               size="lg"
               className="w-full sm:w-auto sm:min-w-[220px]"
             >
@@ -388,7 +519,7 @@ export default function SetCardingPage() {
                     </span>
                   )}
                 </div>
-                <h2 className="font-serif text-3xl text-foreground">{selectedSet}</h2>
+                <h2 className="font-serif text-3xl text-foreground">{generatedSet || selectedSet}</h2>
               </div>
               <Button
                 onClick={handleExportCards}
@@ -400,33 +531,65 @@ export default function SetCardingPage() {
               </Button>
             </div>
 
-            <div className="mb-8">
-              <div className="flex items-baseline justify-between mb-2">
-                <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Minimum difficulty
+            {showBonusPartFilters && (
+              <div className="mb-8">
+                <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  Bonus parts
                 </label>
-                <span className="font-mono text-sm text-foreground">
-                  {minDifficulty.toFixed(1)} / 10
-                </span>
+                <ToggleGroup
+                  type="multiple"
+                  value={bonusParts}
+                  onValueChange={(value) => setBonusParts(value as BonusPart[])}
+                  variant="outline"
+                  className="grid grid-cols-3 justify-stretch"
+                >
+                  {bonusPartOptions.map((option) => (
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={option.value}
+                      aria-label={option.label}
+                      className={outlineToggleItemClassName}
+                    >
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Leadin cards are always included. Easy, Medium, and Hard filters apply only to bonuses with labeled parts; older sets without labels include all parts.
+                </p>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                step="0.1"
-                value={minDifficulty}
-                onChange={(e) => setMinDifficulty(parseFloat(e.target.value))}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                <span>Show all</span>
-                <span>Hardest only</span>
+            )}
+
+            {showDifficultySlider && (
+              <div className="mb-8">
+                <div className="flex items-baseline justify-between mb-2">
+                  <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    Minimum tossup difficulty
+                  </label>
+                  <span className="font-mono text-sm text-foreground">
+                    {minDifficulty.toFixed(1)} / 10
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="0.1"
+                  value={minDifficulty}
+                  onChange={(e) => setMinDifficulty(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                  <span>Show all tossups</span>
+                  <span>Hardest tossups only</span>
+                </div>
               </div>
-            </div>
+            )}
 
             <ul className="divide-y divide-foreground/15">
               {clues.map((clue, index) => {
                 if (!isClueVisible(clue)) return null;
+                const clueMeta = getClueMeta(clue);
                 return (
                 <li key={index} className="group py-5 hover:bg-foreground/[0.03] -mx-2 px-2 transition-colors">
                   {editingClue === index ? (
@@ -451,15 +614,20 @@ export default function SetCardingPage() {
                   ) : (
                     <div className="flex items-start gap-4">
                       <div className="flex-1">
+                        {clueMeta && (
+                          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
+                            {clueMeta}
+                          </p>
+                        )}
                         <p className="text-foreground/90 leading-relaxed mb-1.5">
-                          {typeof clue === "string" ? clue : clue.text}
+                          {getClueText(clue)}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Answer:{" "}
-                          <span className="text-accent">{clue.answerline || "N/A"}</span>
+                          <span className="text-accent">{typeof clue === "object" ? clue.answerline || "N/A" : "N/A"}</span>
                         </p>
                       </div>
-                      {typeof clue?.difficulty === "number" && (
+                      {typeof clue === "object" && typeof clue.difficulty === "number" && (
                         <span className="font-mono text-xs text-muted-foreground whitespace-nowrap mt-1">
                           {clue.difficulty.toFixed(1)} / 10
                         </span>
