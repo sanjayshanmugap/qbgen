@@ -174,6 +174,7 @@ def clean_text(text):
         (r"<i>", ""), (r"</i>", ""), (r"\(\*\)", ""), (r"\[\*\]", ""), (r"\(\+\)", ""),
         (r"For 10 points,", ""), (r", for 10 points,", ""),
         (r"For ten points,", ""), (r"FTP,", ""),
+        (r"(?i)For (?:10|ten) points each\s*[:\-–—]\s*", ""),
         (r"Description acceptable. ", ""), (r"read answerline carefully. ", ""),
         (r"Note to players: ", ""), (r"Note to moderator: ", ""),
         (r"Read the answerline carefully. ", ""), (r"Original-language term required. ", ""),
@@ -538,6 +539,53 @@ def aggregate_bonus_frequency(bonus_records, target_answer, example_limit=3):
     }
 
 
+def get_bonus_association_examples(bonus_records, target_answer, associated_answer):
+    target_key = normalize_answer_key(target_answer)
+    associated_key = normalize_answer_key(associated_answer)
+    examples = []
+
+    for bonus in bonus_records:
+        answers = [
+            clean_optional_answer(answer)
+            for answer in (bonus.get("answers_sanitized") or bonus.get("answers", []))
+        ]
+        parts = [
+            clean_optional_text(part)
+            for part in (bonus.get("parts_sanitized") or bonus.get("parts", []))
+        ]
+        part_count = min(len(parts), len(answers))
+        if part_count == 0:
+            continue
+
+        target_indices = [
+            idx for idx in range(part_count)
+            if answers[idx] and normalize_answer_key(answers[idx]) == target_key
+        ]
+        associated_indices = [
+            idx for idx in range(part_count)
+            if answers[idx] and normalize_answer_key(answers[idx]) == associated_key
+        ]
+        if not target_indices or not associated_indices:
+            continue
+
+        modifiers = normalize_bonus_modifiers(bonus)
+        for target_idx in target_indices:
+            for associated_idx in associated_indices:
+                if associated_idx == target_idx:
+                    continue
+                examples.append(
+                    bonus_part_example(
+                        bonus,
+                        parts,
+                        target_idx,
+                        associated_idx,
+                        modifiers,
+                    )
+                )
+
+    return examples
+
+
 def split_bonuses_into_clues(bonus_records):
     """Build bonus cards from leadins and per-part sentences."""
     clues = []
@@ -785,11 +833,12 @@ def bonus_frequency():
     if not answer:
         return json_error("Answer is required.", 400)
 
-    try:
-        limit = int(data.get("limit", 50))
-    except (TypeError, ValueError):
-        return json_error("limit must be an integer.", 400)
-    limit = max(1, min(limit, 200))
+    limit = data.get("limit")
+    if limit is not None:
+        try:
+            limit = max(1, int(limit))
+        except (TypeError, ValueError):
+            return json_error("limit must be an integer.", 400)
 
     try:
         query_started = time.perf_counter()
@@ -808,7 +857,8 @@ def bonus_frequency():
 
         aggregate_started = time.perf_counter()
         frequency_data = aggregate_bonus_frequency(bonus_array, answer)
-        frequency_data["results"] = frequency_data["results"][:limit]
+        if limit is not None:
+            frequency_data["results"] = frequency_data["results"][:limit]
         frequency_data["total_queried_bonuses"] = len(bonus_array)
         log_stage(
             request_id,
@@ -824,6 +874,59 @@ def bonus_frequency():
         return json_error(f"QBReader request failed: {exc}", 502)
     except Exception as exc:
         logger.exception("[%s] bonus_frequency failed", request_id)
+        return json_error(str(exc), 500)
+
+
+@app.route("/api/bonus_association", methods=["POST"])
+def bonus_association():
+    request_id = uuid.uuid4().hex[:8]
+    request_started = time.perf_counter()
+    data = request.get_json(silent=True) or {}
+    answer = data.get("answer", "").strip()
+    associated_answer = data.get("associated_answer", "").strip()
+    categories = data.get("categories", "")
+    difficulties = data.get("difficulties", "")
+
+    if not answer:
+        return json_error("Answer is required.", 400)
+    if not associated_answer:
+        return json_error("associated_answer is required.", 400)
+
+    try:
+        query_started = time.perf_counter()
+        bonuses = query_db(
+            answer,
+            questionType="bonus",
+            searchType="answer",
+            exactPhrase=True,
+            regex=False,
+            categories=categories,
+            difficulties=difficulties,
+            maxReturnLength=10000,
+        ).get("bonuses", {})
+        bonus_array = bonuses.get("questionArray", [])
+        log_stage(request_id, "bonus_association_query", query_started, bonuses=len(bonus_array))
+
+        aggregate_started = time.perf_counter()
+        examples = get_bonus_association_examples(bonus_array, answer, associated_answer)
+        log_stage(
+            request_id,
+            "bonus_association_aggregate",
+            aggregate_started,
+            examples=len(examples),
+        )
+        log_stage(request_id, "bonus_association_total", request_started, answer=answer)
+        return jsonify({
+            "answerline": clean_optional_answer(answer),
+            "associated_answerline": clean_optional_answer(associated_answer),
+            "total": len(examples),
+            "examples": examples,
+        })
+    except RequestException as exc:
+        logger.exception("[%s] bonus_association failed", request_id)
+        return json_error(f"QBReader request failed: {exc}", 502)
+    except Exception as exc:
+        logger.exception("[%s] bonus_association failed", request_id)
         return json_error(str(exc), 500)
 
 

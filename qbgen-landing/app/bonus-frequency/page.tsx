@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BackendStatus } from "@/components/BackendStatus";
 import { buildApiUrl } from "@/lib/api";
+import { buildBonusFrequencyHash, parseBonusFrequencyHash } from "@/lib/bonus-frequency-hash";
 
 type BonusFrequencyExample = {
   part: string;
@@ -32,13 +33,32 @@ type BonusFrequencyResponse = {
   results: BonusFrequencyResult[];
 };
 
+type BonusAssociationResponse = {
+  answerline: string;
+  associated_answerline: string;
+  total: number;
+  examples: BonusFrequencyExample[];
+};
+
+const DIFFICULTY_OPTIONS = [
+  "1: Middle School",
+  "2: Easy High School",
+  "3: Regular High School",
+  "4: Hard High School",
+  "5: National High School",
+  "6: ● / Easy College",
+  "7: ●● / Medium College",
+  "8: ●●● / Regionals College",
+  "9: ●●●● / Nationals College",
+  "10: Open",
+];
+
 export default function BonusFrequencyPage() {
   const [answerline, setAnswerline] = useState("");
   const [submittedAnswerline, setSubmittedAnswerline] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [difficulties, setDifficulties] = useState<string[]>([]);
   const [results, setResults] = useState<BonusFrequencyResult[]>([]);
-  const [expandedAnswerline, setExpandedAnswerline] = useState<string | null>(null);
   const [totalMatchingBonuses, setTotalMatchingBonuses] = useState(0);
   const [totalQueriedBonuses, setTotalQueriedBonuses] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,8 +68,15 @@ export default function BonusFrequencyPage() {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
 
+  const [selectedAssociated, setSelectedAssociated] = useState<string | null>(null);
+  const [associationExamples, setAssociationExamples] = useState<BonusFrequencyExample[]>([]);
+  const [isLoadingAssociation, setIsLoadingAssociation] = useState(false);
+  const [associationError, setAssociationError] = useState("");
+
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const difficultyDropdownRef = useRef<HTMLDivElement>(null);
+  const associationPanelRef = useRef<HTMLDivElement>(null);
+  const lastSearchKeyRef = useRef("");
 
   const categoryOptions = [
     "Literature",
@@ -66,18 +93,21 @@ export default function BonusFrequencyPage() {
     "Trash",
   ];
 
-  const difficultyOptions = [
-    "1: Middle School",
-    "2: Easy High School",
-    "3: Regular High School",
-    "4: Hard High School",
-    "5: National High School",
-    "6: ● / Easy College",
-    "7: ●● / Medium College",
-    "8: ●●● / Regionals College",
-    "9: ●●●● / Nationals College",
-    "10: Open",
-  ];
+  const difficultyOptions = DIFFICULTY_OPTIONS;
+
+  const buildHash = useCallback(
+    (answer: string, associated: string, categoryFilter: string[], difficultyFilter: string[]) =>
+      buildBonusFrequencyHash(
+        { answer, associated, categories: categoryFilter, difficulties: difficultyFilter },
+        difficultyOptions,
+      ),
+    [difficultyOptions],
+  );
+
+  const parseHash = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    return parseBonusFrequencyHash(window.location.hash, difficultyOptions);
+  }, [difficultyOptions]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -122,6 +152,174 @@ export default function BonusFrequencyPage() {
     };
   }, [isLoading]);
 
+  const fetchAssociationExamples = useCallback(
+    async (targetAnswer: string, associatedAnswer: string, categoryFilter: string[], difficultyFilter: string[]) => {
+      setIsLoadingAssociation(true);
+      setAssociationError("");
+
+      try {
+        const response = await fetch(buildApiUrl("/api/bonus_association"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            answer: targetAnswer,
+            associated_answer: associatedAnswer,
+            categories: categoryFilter.join(","),
+            difficulties: difficultyFilter.join(","),
+          }),
+        });
+
+        const data = (await response.json().catch(() => null)) as
+          | BonusAssociationResponse
+          | { error?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(data && "error" in data ? data.error : "Failed to load associated questions.");
+        }
+        if (data && "error" in data && data.error) {
+          throw new Error(data.error);
+        }
+
+        const associationData = data as BonusAssociationResponse;
+        setAssociationExamples(associationData.examples || []);
+        setSelectedAssociated(associationData.associated_answerline || associatedAnswer);
+      } catch (error) {
+        console.error("Error loading associated questions:", error);
+        setAssociationError(error instanceof Error ? error.message : "Failed to load associated questions.");
+        setAssociationExamples([]);
+      } finally {
+        setIsLoadingAssociation(false);
+      }
+    },
+    [],
+  );
+
+  const handleFindFrequencies = useCallback(
+    async (overrideAnswer?: string, overrideCategories?: string[], overrideDifficulties?: string[]) => {
+      const trimmedAnswerline = (overrideAnswer ?? answerline).trim();
+      if (!trimmedAnswerline) return;
+
+      const activeCategories = overrideCategories ?? categories;
+      const activeDifficulties = overrideDifficulties ?? difficulties;
+
+      setIsLoading(true);
+      setErrorMessage("");
+      setHasSearched(false);
+      setSelectedAssociated(null);
+      setAssociationExamples([]);
+      setAssociationError("");
+
+      try {
+        const response = await fetch(buildApiUrl("/api/bonus_frequency"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            answer: trimmedAnswerline,
+            categories: activeCategories.join(","),
+            difficulties: activeDifficulties.join(","),
+          }),
+        });
+
+        const data = (await response.json().catch(() => null)) as BonusFrequencyResponse | { error?: string } | null;
+        if (!response.ok) {
+          throw new Error(data && "error" in data ? data.error : "Failed to find bonus frequencies.");
+        }
+        if (data && "error" in data && data.error) {
+          throw new Error(data.error);
+        }
+
+        const frequencyData = data as BonusFrequencyResponse;
+        setResults(frequencyData.results || []);
+        setTotalMatchingBonuses(frequencyData.total_matching_bonuses || 0);
+        setTotalQueriedBonuses(frequencyData.total_queried_bonuses || 0);
+        setSubmittedAnswerline(frequencyData.answerline || trimmedAnswerline);
+        setHasSearched(true);
+      } catch (error) {
+        console.error("Error finding bonus frequencies:", error);
+        setErrorMessage(error instanceof Error ? error.message : "Failed to find bonus frequencies.");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [answerline, categories, difficulties],
+  );
+
+  const openAssociation = useCallback(
+    (associatedAnswer: string) => {
+      if (!submittedAnswerline) return;
+
+      const hash = buildHash(submittedAnswerline, associatedAnswer, categories, difficulties);
+      window.location.hash = hash.slice(1);
+
+      window.requestAnimationFrame(() => {
+        associationPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    [submittedAnswerline, categories, difficulties],
+  );
+
+  const closeAssociation = useCallback(() => {
+    if (submittedAnswerline) {
+      const hash = buildHash(submittedAnswerline, "", categories, difficulties);
+      window.location.hash = hash.slice(1);
+    } else {
+      window.location.hash = "";
+    }
+  }, [submittedAnswerline, categories, difficulties]);
+
+  const handleFindFrequenciesRef = useRef(handleFindFrequencies);
+  const fetchAssociationExamplesRef = useRef(fetchAssociationExamples);
+  handleFindFrequenciesRef.current = handleFindFrequencies;
+  fetchAssociationExamplesRef.current = fetchAssociationExamples;
+
+  useEffect(() => {
+    const applyHash = async () => {
+      const hashState = parseHash();
+      if (!hashState) {
+        lastSearchKeyRef.current = "";
+        setSelectedAssociated(null);
+        setAssociationExamples([]);
+        setAssociationError("");
+        return;
+      }
+
+      setAnswerline(hashState.answer);
+      setCategories(hashState.categories);
+      setDifficulties(hashState.difficulties);
+
+      const searchKey = `${hashState.answer}|${hashState.categories.join(",")}|${hashState.difficulties.join(",")}`;
+      if (searchKey !== lastSearchKeyRef.current) {
+        lastSearchKeyRef.current = searchKey;
+        await handleFindFrequenciesRef.current(
+          hashState.answer,
+          hashState.categories,
+          hashState.difficulties,
+        );
+      }
+
+      if (hashState.associated) {
+        await fetchAssociationExamplesRef.current(
+          hashState.answer,
+          hashState.associated,
+          hashState.categories,
+          hashState.difficulties,
+        );
+      } else {
+        setSelectedAssociated(null);
+        setAssociationExamples([]);
+        setAssociationError("");
+      }
+    };
+
+    void applyHash();
+    const onHashChange = () => {
+      void applyHash();
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [parseHash]);
+
   const handleCheckboxChange = (
     option: string,
     setState: React.Dispatch<React.SetStateAction<string[]>>,
@@ -131,49 +329,6 @@ export default function BonusFrequencyPage() {
       setState(state.filter((item) => item !== option));
     } else {
       setState([...state, option]);
-    }
-  };
-
-  const handleFindFrequencies = async () => {
-    const trimmedAnswerline = answerline.trim();
-    if (!trimmedAnswerline) return;
-
-    setIsLoading(true);
-    setErrorMessage("");
-    setHasSearched(false);
-
-    try {
-      const response = await fetch(buildApiUrl("/api/bonus_frequency"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          answer: trimmedAnswerline,
-          categories: categories.join(","),
-          difficulties: difficulties.join(","),
-          limit: 50,
-        }),
-      });
-
-      const data = (await response.json().catch(() => null)) as BonusFrequencyResponse | { error?: string } | null;
-      if (!response.ok) {
-        throw new Error(data && "error" in data ? data.error : "Failed to find bonus frequencies.");
-      }
-      if (data && "error" in data && data.error) {
-        throw new Error(data.error);
-      }
-
-      const frequencyData = data as BonusFrequencyResponse;
-      setResults(frequencyData.results || []);
-      setExpandedAnswerline(null);
-      setTotalMatchingBonuses(frequencyData.total_matching_bonuses || 0);
-      setTotalQueriedBonuses(frequencyData.total_queried_bonuses || 0);
-      setSubmittedAnswerline(frequencyData.answerline || trimmedAnswerline);
-      setHasSearched(true);
-    } catch (error) {
-      console.error("Error finding bonus frequencies:", error);
-      setErrorMessage(error instanceof Error ? error.message : "Failed to find bonus frequencies.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -198,6 +353,26 @@ export default function BonusFrequencyPage() {
   const canSearch = answerline.trim().length > 0 && !isLoading;
   const showEmptyState = hasSearched && results.length === 0;
 
+  const runSearch = useCallback(() => {
+    const trimmed = answerline.trim();
+    if (!trimmed) return;
+
+    const newHash = buildHash(trimmed, "", categories, difficulties).slice(1);
+    lastSearchKeyRef.current = "";
+    if (window.location.hash.slice(1) === newHash) {
+      void handleFindFrequencies(trimmed, categories, difficulties);
+    } else {
+      window.location.hash = newHash;
+    }
+  }, [answerline, categories, difficulties, handleFindFrequencies, buildHash]);
+
+  const statsMessage = (() => {
+    if (totalQueriedBonuses === totalMatchingBonuses) {
+      return `Found ${totalMatchingBonuses} bonus${totalMatchingBonuses === 1 ? "" : "es"} containing this answerline.`;
+    }
+    return `${totalMatchingBonuses} of ${totalQueriedBonuses} QBReader results contain this answerline as a bonus part.`;
+  })();
+
   return (
     <div className="min-h-screen animate-fade-in">
       <div className="max-w-3xl mx-auto px-6 pt-16 pb-24">
@@ -206,7 +381,7 @@ export default function BonusFrequencyPage() {
             <div className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
               Bonus Frequency
             </div>
-            <BackendStatus isWorking={isLoading} />
+            <BackendStatus isWorking={isLoading || isLoadingAssociation} />
           </div>
           <h1 className="font-serif text-5xl md:text-6xl text-foreground mb-4 leading-[1.05]">
             Find linked bonus answers.
@@ -232,14 +407,16 @@ export default function BonusFrequencyPage() {
                   setHasSearched(false);
                   setSubmittedAnswerline("");
                   setResults([]);
-                  setExpandedAnswerline(null);
+                  setSelectedAssociated(null);
+                  setAssociationExamples([]);
                   setTotalMatchingBonuses(0);
                   setTotalQueriedBonuses(0);
+                  window.location.hash = "";
                 }
               }}
               onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
                 if (event.key === "Enter" && canSearch) {
-                  void handleFindFrequencies();
+                  runSearch();
                 }
               }}
               className="text-lg h-12"
@@ -325,7 +502,7 @@ export default function BonusFrequencyPage() {
 
           <div className="pt-2">
             <Button
-              onClick={handleFindFrequencies}
+              onClick={runSearch}
               disabled={!canSearch}
               size="lg"
               className="w-full sm:w-auto sm:min-w-[220px]"
@@ -362,69 +539,121 @@ export default function BonusFrequencyPage() {
         )}
 
         {results.length > 0 && (
-          <div className="mt-20">
-            <div className="mb-8 pb-4 border-b border-foreground/15">
+          <div className="mt-16">
+            <div className="mb-6 pb-4 border-b border-foreground/15">
               <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
                 Associated Answerlines · {results.length}
               </div>
               <h2 className="font-serif text-3xl text-foreground">{submittedAnswerline}</h2>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Found {totalMatchingBonuses} matching bonus{totalMatchingBonuses === 1 ? "" : "es"}
-                {totalQueriedBonuses !== totalMatchingBonuses && ` from ${totalQueriedBonuses} QBReader results`}.
-              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{statsMessage}</p>
             </div>
 
-            <ol className="divide-y divide-foreground/15">
-              {results.map((result) => {
-                const isExpanded = expandedAnswerline === result.answerline;
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-foreground/20">
+                    <th className="py-2 pr-4 text-left font-medium text-foreground w-10">#</th>
+                    <th className="py-2 pr-4 text-left font-medium text-foreground">Answer</th>
+                    <th className="py-2 text-right font-medium text-foreground w-24">Frequency</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((result, index) => {
+                    const isSelected = selectedAssociated === result.answerline;
 
-                return (
-                  <li key={result.answerline}>
-                    <button
-                      type="button"
-                      onClick={() => setExpandedAnswerline(isExpanded ? null : result.answerline)}
-                      className="w-full py-5 flex items-center gap-4 text-left hover:bg-foreground/[0.03] -mx-2 px-2 transition-colors"
-                      aria-expanded={isExpanded}
-                    >
-                      <div className="w-20 shrink-0">
-                        <div className="font-serif text-4xl text-foreground">{result.frequency}</div>
-                        <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          hit{result.frequency === 1 ? "" : "s"}
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-serif text-2xl text-foreground">
-                          {result.answerline}
-                        </h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {isExpanded ? "Hide associated questions" : "Show associated questions"}
-                        </p>
-                      </div>
-                    </button>
+                    return (
+                      <tr
+                        key={result.answerline}
+                        className={`border-b border-foreground/10 ${
+                          isSelected ? "bg-foreground/[0.04]" : "hover:bg-foreground/[0.03]"
+                        }`}
+                      >
+                        <td className="py-1.5 pr-4 text-muted-foreground tabular-nums">{index + 1}</td>
+                        <td className="py-1.5 pr-4">
+                          <a
+                            href={buildHash(submittedAnswerline, result.answerline, categories, difficulties)}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              openAssociation(result.answerline);
+                            }}
+                            className={`text-foreground hover:text-accent transition-colors ${
+                              isSelected ? "text-accent" : ""
+                            }`}
+                          >
+                            {result.answerline}
+                          </a>
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums text-foreground">{result.frequency}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-                    {isExpanded && (
-                      <div className="pb-6 pl-24 space-y-4">
-                        {result.examples.map((example, index) => (
-                          <div key={`${result.answerline}-${index}`} className="border-l border-foreground/20 pl-4">
-                            <p className="text-sm uppercase tracking-[0.14em] text-muted-foreground mb-1">
-                              {describeExample(example) || "Example bonus part"}
-                            </p>
-                            <p className="text-foreground/90 leading-relaxed">{example.part}</p>
-                            <p className="mt-2 text-sm text-muted-foreground">
-                              Matched{" "}
-                              <span className="text-accent">
-                                {example.target_part_label || "target part"}
-                              </span>
-                              : {example.target_part}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+        {(selectedAssociated || isLoadingAssociation) && (
+          <div ref={associationPanelRef} className="mt-12 border-t border-foreground/15 pt-8">
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  Associated Questions
+                </div>
+                <h2 className="font-serif text-2xl text-foreground">
+                  {submittedAnswerline} + {selectedAssociated || "…"}
+                </h2>
+                {!isLoadingAssociation && associationExamples.length > 0 && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {associationExamples.length} bonus{associationExamples.length === 1 ? "" : "es"} with both answerlines.
+                  </p>
+                )}
+              </div>
+              {selectedAssociated && (
+                <button
+                  type="button"
+                  onClick={closeAssociation}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                >
+                  Close
+                </button>
+              )}
+            </div>
+
+            {isLoadingAssociation && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Loader2 className="animate-spin h-4 w-4" />
+                Loading associated questions...
+              </div>
+            )}
+
+            {associationError && (
+              <p className="text-sm text-destructive border-l-2 border-destructive pl-3">
+                {associationError}
+              </p>
+            )}
+
+            {!isLoadingAssociation && !associationError && associationExamples.length === 0 && selectedAssociated && (
+              <p className="text-sm text-muted-foreground">No associated questions found.</p>
+            )}
+
+            {!isLoadingAssociation && associationExamples.length > 0 && (
+              <ol className="divide-y divide-foreground/10">
+                {associationExamples.map((example, index) => (
+                  <li key={`${selectedAssociated}-${index}`} className="py-3">
+                    <p className="text-xs text-muted-foreground mb-1.5">
+                      {describeExample(example) || `Bonus ${index + 1}`}
+                    </p>
+                    <p className="text-foreground/90 leading-relaxed text-sm">{example.part}</p>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Matched{" "}
+                      <span className="text-accent">{example.target_part_label || "target part"}</span>
+                      : {example.target_part}
+                    </p>
                   </li>
-                );
-              })}
-            </ol>
+                ))}
+              </ol>
+            )}
           </div>
         )}
       </div>
