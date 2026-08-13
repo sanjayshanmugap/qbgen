@@ -1,3 +1,5 @@
+import { difficultyToNumber, numberToDifficulty } from "@/lib/quiz-options";
+
 export type BonusFrequencyHashState = {
   answer: string;
   associated: string;
@@ -11,20 +13,6 @@ type CompactHashPayload = {
   c?: string[];
   d?: number[];
 };
-
-const DIFFICULTY_PREFIX = /^(\d+):/;
-
-export function difficultyToNumber(label: string): number | null {
-  const match = label.match(DIFFICULTY_PREFIX);
-  if (!match) return null;
-  const value = Number(match[1]);
-  return Number.isInteger(value) && value >= 1 && value <= 10 ? value : null;
-}
-
-export function numberToDifficulty(value: number, difficultyOptions: string[]): string | null {
-  const prefix = `${value}:`;
-  return difficultyOptions.find((option) => option.startsWith(prefix)) || null;
-}
 
 function toBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value);
