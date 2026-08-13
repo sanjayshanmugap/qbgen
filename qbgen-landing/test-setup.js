@@ -20,8 +20,12 @@ testEndpoint('http://localhost:3000/set-carding', 'Set Carding page');
 console.log('\n4. Testing About page (port 3000/about)...');
 testEndpoint('http://localhost:3000/about', 'About page');
 
-// Test 5: Check if backend API is accessible
-console.log('\n5. Testing backend API (port 8080)...');
+// Test 5: Check if Bonus Frequency page is accessible
+console.log('\n5. Testing Bonus Frequency page (port 3000/bonus-frequency)...');
+testEndpoint('http://localhost:3000/bonus-frequency', 'Bonus Frequency page');
+
+// Test 6: Check if backend API is accessible
+console.log('\n6. Testing backend API (port 8080)...');
 testEndpoint('http://localhost:8080/get_sets', 'Backend API');
 
 function testEndpoint(url, description) {
