@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import tempfile
+import threading
 import time
 import uuid
 from collections import OrderedDict
@@ -70,6 +71,10 @@ else:
     embed = SentenceTransformer("all-MiniLM-L6-v2")
 nlp = spacy.load("en_core_web_sm")
 embedding_cache = OrderedDict()
+
+# spaCy/sentence-transformers objects and the LRU cache above are shared across
+# gunicorn threads and are not thread-safe; serialize access. /health must never need this lock.
+model_lock = threading.Lock()
 
 
 def json_error(message, status_code):
@@ -236,31 +241,38 @@ def get_sentence_embeddings(sentences):
     if len(sentences) == 0:
         return np.array([])
 
-    missing_sentences = []
-    seen_missing = set()
+    with model_lock:
+        resolved = {}
+        missing_sentences = []
+        seen_missing = set()
 
-    for sentence in sentences:
-        cached_embedding = embedding_cache.get(sentence)
-        if cached_embedding is not None:
-            embedding_cache.move_to_end(sentence)
-            continue
+        for sentence in sentences:
+            cached_embedding = embedding_cache.get(sentence)
+            if cached_embedding is not None:
+                embedding_cache.move_to_end(sentence)
+                resolved[sentence] = cached_embedding
+                continue
 
-        if sentence not in seen_missing:
-            missing_sentences.append(sentence)
-            seen_missing.add(sentence)
+            if sentence not in seen_missing:
+                missing_sentences.append(sentence)
+                seen_missing.add(sentence)
 
-    if missing_sentences:
-        missing_embeddings = embed.encode(
-            missing_sentences,
-            batch_size=EMBED_BATCH_SIZE,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        for sentence, embedding in zip(missing_sentences, missing_embeddings):
-            cache_embedding(sentence, embedding.astype(np.float32, copy=False))
+        if missing_sentences:
+            missing_embeddings = embed.encode(
+                missing_sentences,
+                batch_size=EMBED_BATCH_SIZE,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            for sentence, embedding in zip(missing_sentences, missing_embeddings):
+                embedding = embedding.astype(np.float32, copy=False)
+                cache_embedding(sentence, embedding)
+                resolved[sentence] = embedding
 
-    return np.stack([embedding_cache[sentence] for sentence in sentences]).astype(np.float32, copy=False)
+        # Assemble from values captured above (not by re-indexing embedding_cache) so a
+        # concurrent eviction on another thread can't yank an entry out from under us.
+        return np.stack([resolved[sentence] for sentence in sentences]).astype(np.float32, copy=False)
 
 
 def build_similarity_graph(embeddings, similarity_threshold):
@@ -381,7 +393,9 @@ def split_tossups_into_clue_records(tossup_records):
     """Split each tossup into per-sentence records carrying position + source difficulty."""
     records = []
     questions = [tossup["question"] for tossup in tossup_records]
-    for tossup, doc in zip(tossup_records, nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE)):
+    with model_lock:
+        docs = list(nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE))
+    for tossup, doc in zip(tossup_records, docs):
         question_length = max(len(tossup["question"]), 1)
         for sentence in doc.sents:
             if not sentence.text.strip():
@@ -401,7 +415,9 @@ def split_tossups_into_set_clues(tossup_records):
     clues = []
     questions = [tossup["question"] for tossup in tossup_records]
 
-    for tossup, doc in zip(tossup_records, nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE)):
+    with model_lock:
+        docs = list(nlp.pipe(questions, batch_size=SPACY_BATCH_SIZE))
+    for tossup, doc in zip(tossup_records, docs):
         question_length = max(len(tossup["question"]), 1)
         for sentence in doc.sents:
             if not sentence.text.strip():
@@ -647,7 +663,8 @@ def split_bonuses_into_clues(bonus_records):
                 "has_modifiers": has_modifiers,
             })
 
-    docs = nlp.pipe([source["text"] for source in sentence_sources], batch_size=SPACY_BATCH_SIZE)
+    with model_lock:
+        docs = list(nlp.pipe([source["text"] for source in sentence_sources], batch_size=SPACY_BATCH_SIZE))
     for source, doc in zip(sentence_sources, docs):
         for sentence in doc.sents:
             if not sentence.text.strip():
@@ -965,7 +982,10 @@ def generate_apkg():
     data = request.get_json(silent=True) or {}
     clues = data.get("clues", [])
     answerline = data.get("answerline", "")
-    deck_name = (data.get("deck_name") or "").strip() or f"{answerline} deck"
+    raw_deck_name = data.get("deck_name")
+    if raw_deck_name is not None and not isinstance(raw_deck_name, str):
+        return json_error("deck_name must be a string.", 400)
+    deck_name = (raw_deck_name or "").strip() or f"{answerline} deck"
 
     if not clues:
         return json_error("clues is required.", 400)
