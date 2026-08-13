@@ -92,9 +92,6 @@ export function parseBonusFrequencyHash(
   return parseCompactHash(raw, difficultyOptions);
 }
 
-export function buildBonusFrequencyHash(
-  state: BonusFrequencyHashState,
-  difficultyOptions: string[],
-): string {
+export function buildBonusFrequencyHash(state: BonusFrequencyHashState): string {
   return `#${encodeBonusFrequencyHash(state)}`;
 }

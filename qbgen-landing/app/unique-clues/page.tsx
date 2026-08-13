@@ -10,6 +10,12 @@ import { buildApiUrl } from "@/lib/api";
 import { CATEGORY_OPTIONS, DIFFICULTY_OPTIONS, difficultiesToParam } from "@/lib/quiz-options";
 import { useLoadingMessage } from "@/hooks/use-loading-message";
 
+type UniqueClue = {
+  text: string;
+  difficulty?: number;
+  cluster_size?: number;
+};
+
 export default function UniqueCluesPage() {
   const [answerline, setAnswerline] = useState("");
   const [submittedAnswerline, setSubmittedAnswerline] = useState("");
@@ -17,8 +23,7 @@ export default function UniqueCluesPage() {
   const [difficulties, setDifficulties] = useState<string[]>([]);
   const [similarityThreshold, setSimilarityThreshold] = useState(0.7);
   const [minDifficulty, setMinDifficulty] = useState(0);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [clues, setClues] = useState<any[]>([]);
+  const [clues, setClues] = useState<UniqueClue[]>([]);
   const [editingClue, setEditingClue] = useState<number | null>(null);
   const [editedClueText, setEditedClueText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -65,9 +70,8 @@ export default function UniqueCluesPage() {
     }
   };
 
-  const isClueVisible = (clue: { difficulty?: number } | string) => {
-    const difficulty = typeof clue === "object" ? clue?.difficulty : undefined;
-    return typeof difficulty !== "number" || difficulty >= minDifficulty;
+  const isClueVisible = (clue: UniqueClue) => {
+    return typeof clue.difficulty !== "number" || clue.difficulty >= minDifficulty;
   };
 
   const visibleClues = clues.filter(isClueVisible);
@@ -79,7 +83,7 @@ export default function UniqueCluesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clues: visibleClues.map(clue => clue.text || clue),
+          clues: visibleClues.map(clue => clue.text),
           answerline: submittedAnswerline
         }),
       });
@@ -107,7 +111,7 @@ export default function UniqueCluesPage() {
   const handleEditClue = (index: number) => {
     const clue = clues[index];
     setEditingClue(index);
-    setEditedClueText(clue.text || clue);
+    setEditedClueText(clue.text);
   };
 
   const handleSaveEdit = () => {
@@ -328,9 +332,9 @@ export default function UniqueCluesPage() {
                   ) : (
                     <div className="flex items-start gap-4">
                       <p className="text-foreground/90 flex-1 leading-relaxed">
-                        {typeof clue === "string" ? clue : clue.text}
+                        {clue.text}
                       </p>
-                      {typeof clue?.difficulty === "number" && (
+                      {typeof clue.difficulty === "number" && (
                         <span
                           className="font-mono text-xs text-muted-foreground whitespace-nowrap mt-1"
                           title={`Averaged across ${clue.cluster_size ?? 1} clue${clue.cluster_size === 1 ? "" : "s"}`}

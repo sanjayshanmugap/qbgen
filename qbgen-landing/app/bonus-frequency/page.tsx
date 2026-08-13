@@ -73,11 +73,13 @@ export default function BonusFrequencyPage() {
 
   const buildHash = useCallback(
     (answer: string, associated: string, categoryFilter: string[], difficultyFilter: string[]) =>
-      buildBonusFrequencyHash(
-        { answer, associated, categories: categoryFilter, difficulties: difficultyFilter },
-        difficultyOptions,
-      ),
-    [difficultyOptions],
+      buildBonusFrequencyHash({
+        answer,
+        associated,
+        categories: categoryFilter,
+        difficulties: difficultyFilter,
+      }),
+    [],
   );
 
   const parseHash = useCallback(() => {
@@ -189,7 +191,7 @@ export default function BonusFrequencyPage() {
         associationPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     },
-    [submittedAnswerline, categories, difficulties],
+    [submittedAnswerline, categories, difficulties, buildHash],
   );
 
   const closeAssociation = useCallback(() => {
@@ -199,7 +201,7 @@ export default function BonusFrequencyPage() {
     } else {
       window.location.hash = "";
     }
-  }, [submittedAnswerline, categories, difficulties]);
+  }, [submittedAnswerline, categories, difficulties, buildHash]);
 
   const handleFindFrequenciesRef = useRef(handleFindFrequencies);
   const fetchAssociationExamplesRef = useRef(fetchAssociationExamples);

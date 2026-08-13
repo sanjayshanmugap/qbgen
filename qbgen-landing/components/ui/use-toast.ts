@@ -18,6 +18,7 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- upstream shadcn/ui pattern: this object exists solely to derive the ActionType union below via `typeof`.
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
