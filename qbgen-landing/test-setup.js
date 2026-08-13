@@ -26,13 +26,17 @@ testEndpoint('http://localhost:3000/bonus-frequency', 'Bonus Frequency page');
 
 // Test 6: Check if backend API is accessible
 console.log('\n6. Testing backend API (port 8080)...');
-testEndpoint('http://localhost:8080/get_sets', 'Backend API');
+testEndpoint('http://localhost:8080/api/get_sets', 'Backend API');
 
 function testEndpoint(url, description) {
   const req = http.get(url, (res) => {
-    console.log(`   ✅ ${description}: ${res.statusCode} ${res.statusMessage}`);
-    if (res.statusCode === 200) {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      console.log(`   ✅ ${description}: ${res.statusCode} ${res.statusMessage}`);
       console.log(`   📍 URL: ${url}`);
+    } else {
+      console.log(`   ❌ ${description}: ${res.statusCode} ${res.statusMessage}`);
+      console.log(`   📍 URL: ${url}`);
+      process.exitCode = 1;
     }
   });
 
