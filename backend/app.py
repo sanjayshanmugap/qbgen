@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import re
@@ -1003,15 +1004,24 @@ def generate_apkg():
             )
         deck.add_note(note)
 
+    # Cloud Run's filesystem is in-memory; a leaked temp file permanently
+    # eats the instance's RAM allotment, so delete it before responding.
     with tempfile.NamedTemporaryFile(suffix=".apkg", delete=False) as temp_file:
-        genanki.Package(deck).write_to_file(temp_file.name)
-        temp_file.seek(0)
-        log_stage(request_id, "generate_apkg_total", request_started, cards=len(clues))
-        return send_file(
-            temp_file.name,
-            as_attachment=True,
-            download_name=f"{answerline}_cards.apkg",
-        )
+        temp_path = temp_file.name
+    try:
+        genanki.Package(deck).write_to_file(temp_path)
+        with open(temp_path, "rb") as apkg_file:
+            apkg_bytes = io.BytesIO(apkg_file.read())
+    finally:
+        os.unlink(temp_path)
+
+    log_stage(request_id, "generate_apkg_total", request_started, cards=len(clues))
+    return send_file(
+        apkg_bytes,
+        as_attachment=True,
+        download_name=f"{answerline}_cards.apkg",
+        mimetype="application/octet-stream",
+    )
 
 
 if __name__ == "__main__":
