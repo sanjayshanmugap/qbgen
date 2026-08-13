@@ -228,7 +228,8 @@ export default function SetCardingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clues: visibleClues
+          clues: visibleClues,
+          deck_name: generatedSet || selectedSet,
         }),
       });
 

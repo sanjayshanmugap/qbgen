@@ -1,3 +1,4 @@
+import hashlib
 import io
 import logging
 import os
@@ -206,6 +207,15 @@ def clean_answer(answer):
     pattern = r"^[^[(]*"
     cleaned_answer = re.findall(pattern, answer)
     return cleaned_answer[0].strip()
+
+
+def deck_id_for_name(deck_name):
+    """Stable per-name deck ID in genanki's conventional range.
+
+    A hardcoded shared ID makes Anki treat every export as the same deck.
+    """
+    digest = hashlib.sha256(deck_name.encode("utf-8")).hexdigest()
+    return (int(digest, 16) % (1 << 30)) + (1 << 30)
 
 
 VALID_BONUS_MODIFIERS = {"e", "m", "h"}
@@ -955,6 +965,7 @@ def generate_apkg():
     data = request.get_json(silent=True) or {}
     clues = data.get("clues", [])
     answerline = data.get("answerline", "")
+    deck_name = (data.get("deck_name") or "").strip() or f"{answerline} deck"
 
     if not clues:
         return json_error("clues is required.", 400)
@@ -986,10 +997,7 @@ def generate_apkg():
         """,
     )
 
-    deck = genanki.Deck(
-        2059400110,
-        f"{answerline} deck",
-    )
+    deck = genanki.Deck(deck_id_for_name(deck_name), deck_name)
 
     for clue in clues:
         if isinstance(clue, dict) and "text" in clue and "answerline" in clue:
@@ -1019,7 +1027,7 @@ def generate_apkg():
     return send_file(
         apkg_bytes,
         as_attachment=True,
-        download_name=f"{answerline}_cards.apkg",
+        download_name=f"{answerline or deck_name}_cards.apkg",
         mimetype="application/octet-stream",
     )
 

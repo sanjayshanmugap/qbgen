@@ -30,6 +30,7 @@ from app import (
     clean_text,
     compute_clue_difficulty,
     connected_components,
+    deck_id_for_name,
     get_sentence_embeddings,
     normalize_answer_key,
     select_cluster_representative,
@@ -425,7 +426,7 @@ def write_apkg(clues: list[dict], output_path: Path, deck_name: str) -> None:
         """,
     )
 
-    deck = genanki.Deck(2059400110, deck_name)
+    deck = genanki.Deck(deck_id_for_name(deck_name), deck_name)
     for clue in clues:
         deck.add_note(
             genanki.Note(
