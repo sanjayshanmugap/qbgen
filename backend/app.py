@@ -200,6 +200,8 @@ def clean_answer(answer):
         answer = answer.replace("<i>", "")
     if "</i>" in answer:
         answer = answer.replace("</i>", "")
+    if "<" in answer:
+        answer = answer[: answer.index("<")]
     pattern = r"^[^[(]*"
     cleaned_answer = re.findall(pattern, answer)
     return cleaned_answer[0].strip()
