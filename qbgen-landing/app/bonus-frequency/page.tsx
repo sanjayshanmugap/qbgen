@@ -1,12 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BackendStatus } from "@/components/BackendStatus";
+import { MultiSelectDropdown } from "@/components/MultiSelectDropdown";
 import { buildApiUrl } from "@/lib/api";
 import { buildBonusFrequencyHash, parseBonusFrequencyHash } from "@/lib/bonus-frequency-hash";
+import { CATEGORY_OPTIONS, DIFFICULTY_OPTIONS, difficultiesToParam } from "@/lib/quiz-options";
+import { useLoadingMessage } from "@/hooks/use-loading-message";
 
 type BonusFrequencyExample = {
   part: string;
@@ -40,19 +43,6 @@ type BonusAssociationResponse = {
   examples: BonusFrequencyExample[];
 };
 
-const DIFFICULTY_OPTIONS = [
-  "1: Middle School",
-  "2: Easy High School",
-  "3: Regular High School",
-  "4: Hard High School",
-  "5: National High School",
-  "6: ● / Easy College",
-  "7: ●● / Medium College",
-  "8: ●●● / Regionals College",
-  "9: ●●●● / Nationals College",
-  "10: Open",
-];
-
 export default function BonusFrequencyPage() {
   const [answerline, setAnswerline] = useState("");
   const [submittedAnswerline, setSubmittedAnswerline] = useState("");
@@ -62,95 +52,40 @@ export default function BonusFrequencyPage() {
   const [totalMatchingBonuses, setTotalMatchingBonuses] = useState(0);
   const [totalQueriedBonuses, setTotalQueriedBonuses] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
 
   const [selectedAssociated, setSelectedAssociated] = useState<string | null>(null);
   const [associationExamples, setAssociationExamples] = useState<BonusFrequencyExample[]>([]);
   const [isLoadingAssociation, setIsLoadingAssociation] = useState(false);
   const [associationError, setAssociationError] = useState("");
 
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const difficultyDropdownRef = useRef<HTMLDivElement>(null);
   const associationPanelRef = useRef<HTMLDivElement>(null);
   const lastSearchKeyRef = useRef("");
 
-  const categoryOptions = [
-    "Literature",
-    "History",
-    "Science",
-    "Fine Arts",
-    "Religion",
-    "Mythology",
-    "Philosophy",
-    "Social Science",
-    "Current Events",
-    "Geography",
-    "Other Academic",
-    "Trash",
-  ];
-
   const difficultyOptions = DIFFICULTY_OPTIONS;
+
+  const loadingMessage = useLoadingMessage(
+    isLoading,
+    "Searching bonus answerlines...",
+    "Still working. QBReader bonus search may be taking longer than usual.",
+  );
 
   const buildHash = useCallback(
     (answer: string, associated: string, categoryFilter: string[], difficultyFilter: string[]) =>
-      buildBonusFrequencyHash(
-        { answer, associated, categories: categoryFilter, difficulties: difficultyFilter },
-        difficultyOptions,
-      ),
-    [difficultyOptions],
+      buildBonusFrequencyHash({
+        answer,
+        associated,
+        categories: categoryFilter,
+        difficulties: difficultyFilter,
+      }),
+    [],
   );
 
   const parseHash = useCallback(() => {
     if (typeof window === "undefined") return null;
     return parseBonusFrequencyHash(window.location.hash, difficultyOptions);
   }, [difficultyOptions]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        categoryDropdownRef.current &&
-        !categoryDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowCategoryDropdown(false);
-      }
-
-      if (
-        difficultyDropdownRef.current &&
-        !difficultyDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowDifficultyDropdown(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setLoadingMessage("");
-      return;
-    }
-
-    setLoadingMessage("Searching bonus answerlines...");
-
-    const coldStartTimer = window.setTimeout(() => {
-      setLoadingMessage("Waking up the backend. The first request after idle can take a bit longer.");
-    }, 4000);
-
-    const upstreamTimer = window.setTimeout(() => {
-      setLoadingMessage("Still working. QBReader bonus search may be taking longer than usual.");
-    }, 12000);
-
-    return () => {
-      window.clearTimeout(coldStartTimer);
-      window.clearTimeout(upstreamTimer);
-    };
-  }, [isLoading]);
 
   const fetchAssociationExamples = useCallback(
     async (targetAnswer: string, associatedAnswer: string, categoryFilter: string[], difficultyFilter: string[]) => {
@@ -165,7 +100,7 @@ export default function BonusFrequencyPage() {
             answer: targetAnswer,
             associated_answer: associatedAnswer,
             categories: categoryFilter.join(","),
-            difficulties: difficultyFilter.join(","),
+            difficulties: difficultiesToParam(difficultyFilter),
           }),
         });
 
@@ -217,7 +152,7 @@ export default function BonusFrequencyPage() {
           body: JSON.stringify({
             answer: trimmedAnswerline,
             categories: activeCategories.join(","),
-            difficulties: activeDifficulties.join(","),
+            difficulties: difficultiesToParam(activeDifficulties),
           }),
         });
 
@@ -256,7 +191,7 @@ export default function BonusFrequencyPage() {
         associationPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     },
-    [submittedAnswerline, categories, difficulties],
+    [submittedAnswerline, categories, difficulties, buildHash],
   );
 
   const closeAssociation = useCallback(() => {
@@ -266,7 +201,7 @@ export default function BonusFrequencyPage() {
     } else {
       window.location.hash = "";
     }
-  }, [submittedAnswerline, categories, difficulties]);
+  }, [submittedAnswerline, categories, difficulties, buildHash]);
 
   const handleFindFrequenciesRef = useRef(handleFindFrequencies);
   const fetchAssociationExamplesRef = useRef(fetchAssociationExamples);
@@ -319,25 +254,6 @@ export default function BonusFrequencyPage() {
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [parseHash]);
-
-  const handleCheckboxChange = (
-    option: string,
-    setState: React.Dispatch<React.SetStateAction<string[]>>,
-    state: string[],
-  ) => {
-    if (state.includes(option)) {
-      setState(state.filter((item) => item !== option));
-    } else {
-      setState([...state, option]);
-    }
-  };
-
-  const selectionLabel = (selectedCount: number, singular: string, plural: string) =>
-    selectedCount === 0
-      ? `Select ${plural}`
-      : selectedCount === 1
-      ? `1 ${singular} selected`
-      : `${selectedCount} ${plural} selected`;
 
   const describeExample = (example: BonusFrequencyExample) => {
     const parts = [];
@@ -427,77 +343,24 @@ export default function BonusFrequencyPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
-            <div className="relative" ref={categoryDropdownRef}>
-              <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                Categories
-                <span className="normal-case tracking-normal text-muted-foreground ml-1">(optional)</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
-              >
-                <span className={categories.length > 0 ? "text-foreground" : "text-muted-foreground"}>
-                  {selectionLabel(categories.length, "category", "categories")}
-                </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {showCategoryDropdown && (
-                <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
-                  {categoryOptions.map((category) => (
-                    <label
-                      key={category}
-                      className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={categories.includes(category)}
-                        onChange={() => handleCheckboxChange(category, setCategories, categories)}
-                        className="mr-3 h-4 w-4 accent-accent"
-                      />
-                      {category}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="relative" ref={difficultyDropdownRef}>
-              <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                Difficulties
-                <span className="normal-case tracking-normal text-muted-foreground ml-1">(optional)</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowDifficultyDropdown(!showDifficultyDropdown)}
-                className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
-              >
-                <span className={difficulties.length > 0 ? "text-foreground" : "text-muted-foreground"}>
-                  {selectionLabel(difficulties.length, "difficulty", "difficulties")}
-                </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {showDifficultyDropdown && (
-                <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-72 overflow-y-auto">
-                  {difficultyOptions.map((difficulty) => (
-                    <label
-                      key={difficulty}
-                      className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={difficulties.includes(difficulty)}
-                        onChange={() => handleCheckboxChange(difficulty, setDifficulties, difficulties)}
-                        className="mr-3 h-4 w-4 accent-accent"
-                      />
-                      {difficulty}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
+            <MultiSelectDropdown
+              label="Categories"
+              optional
+              options={CATEGORY_OPTIONS}
+              selected={categories}
+              onChange={setCategories}
+              singular="category"
+              plural="categories"
+            />
+            <MultiSelectDropdown
+              label="Difficulties"
+              optional
+              options={difficultyOptions}
+              selected={difficulties}
+              onChange={setDifficulties}
+              singular="difficulty"
+              plural="difficulties"
+            />
           </div>
 
           <div className="pt-2">

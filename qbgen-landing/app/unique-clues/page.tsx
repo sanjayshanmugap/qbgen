@@ -1,11 +1,20 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react";
-import { Loader2, Edit3, Trash2, Download, Check, X, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Edit3, Trash2, Download, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BackendStatus } from "@/components/BackendStatus";
+import { MultiSelectDropdown } from "@/components/MultiSelectDropdown";
 import { buildApiUrl } from "@/lib/api";
+import { CATEGORY_OPTIONS, DIFFICULTY_OPTIONS, difficultiesToParam } from "@/lib/quiz-options";
+import { useLoadingMessage } from "@/hooks/use-loading-message";
+
+type UniqueClue = {
+  text: string;
+  difficulty?: number;
+  cluster_size?: number;
+};
 
 export default function UniqueCluesPage() {
   const [answerline, setAnswerline] = useState("");
@@ -14,89 +23,17 @@ export default function UniqueCluesPage() {
   const [difficulties, setDifficulties] = useState<string[]>([]);
   const [similarityThreshold, setSimilarityThreshold] = useState(0.7);
   const [minDifficulty, setMinDifficulty] = useState(0);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [clues, setClues] = useState<any[]>([]);
+  const [clues, setClues] = useState<UniqueClue[]>([]);
   const [editingClue, setEditingClue] = useState<number | null>(null);
   const [editedClueText, setEditedClueText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
 
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const difficultyDropdownRef = useRef<HTMLDivElement>(null);
-
-  const categoryOptions = [
-    "Literature",
-    "History",
-    "Science",
-    "Fine Arts",
-    "Religion",
-    "Mythology",
-    "Philosophy",
-    "Social Science",
-    "Current Events",
-    "Geography",
-    "Other Academic",
-    "Trash",
-  ];
-
-  const difficultyOptions = [
-    "1: Middle School",
-    "2: Easy High School",
-    "3: Regular High School",
-    "4: Hard High School",
-    "5: National High School",
-    "6: ● / Easy College",
-    "7: ●● / Medium College",
-    "8: ●●● / Regionals College",
-    "9: ●●●● / Nationals College",
-    "10: Open",
-  ];
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        categoryDropdownRef.current &&
-        !categoryDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowCategoryDropdown(false);
-      }
-
-      if (
-        difficultyDropdownRef.current &&
-        !difficultyDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowDifficultyDropdown(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setLoadingMessage("");
-      return;
-    }
-
-    setLoadingMessage("Generating clues...");
-
-    const coldStartTimer = window.setTimeout(() => {
-      setLoadingMessage("Waking up the backend. The first request after idle can take a bit longer.");
-    }, 4000);
-
-    const upstreamTimer = window.setTimeout(() => {
-      setLoadingMessage("Still working. QBReader or semantic clustering may be taking longer than usual.");
-    }, 12000);
-
-    return () => {
-      window.clearTimeout(coldStartTimer);
-      window.clearTimeout(upstreamTimer);
-    };
-  }, [isLoading]);
+  const loadingMessage = useLoadingMessage(
+    isLoading,
+    "Generating clues...",
+    "Still working. QBReader or semantic clustering may be taking longer than usual.",
+  );
 
   const handleGenerateClues = async () => {
     if (!answerline.trim()) return;
@@ -110,7 +47,7 @@ export default function UniqueCluesPage() {
         body: JSON.stringify({
           answer: answerline.trim(),
           categories: categories.join(","),
-          difficulties: difficulties.join(","),
+          difficulties: difficultiesToParam(difficulties),
           similarity_threshold: similarityThreshold,
         }),
       });
@@ -133,9 +70,8 @@ export default function UniqueCluesPage() {
     }
   };
 
-  const isClueVisible = (clue: { difficulty?: number } | string) => {
-    const difficulty = typeof clue === "object" ? clue?.difficulty : undefined;
-    return typeof difficulty !== "number" || difficulty >= minDifficulty;
+  const isClueVisible = (clue: UniqueClue) => {
+    return typeof clue.difficulty !== "number" || clue.difficulty >= minDifficulty;
   };
 
   const visibleClues = clues.filter(isClueVisible);
@@ -147,7 +83,7 @@ export default function UniqueCluesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clues: visibleClues.map(clue => clue.text || clue),
+          clues: visibleClues.map(clue => clue.text),
           answerline: submittedAnswerline
         }),
       });
@@ -172,18 +108,10 @@ export default function UniqueCluesPage() {
     }
   };
 
-  const handleCheckboxChange = (option: string, setState: React.Dispatch<React.SetStateAction<string[]>>, state: string[]) => {
-    if (state.includes(option)) {
-      setState(state.filter((item: string) => item !== option));
-    } else {
-      setState([...state, option]);
-    }
-  };
-
   const handleEditClue = (index: number) => {
     const clue = clues[index];
     setEditingClue(index);
-    setEditedClueText(clue.text || clue);
+    setEditedClueText(clue.text);
   };
 
   const handleSaveEdit = () => {
@@ -214,13 +142,6 @@ export default function UniqueCluesPage() {
   const handleDeleteClue = (index: number) => {
     setClues(clues.filter((_, i) => i !== index));
   };
-
-  const selectionLabel = (n: number, singular: string, plural: string) =>
-    n === 0
-      ? `Select ${plural}`
-      : n === 1
-      ? `1 ${singular} selected`
-      : `${n} ${plural} selected`;
 
   return (
     <div className="min-h-screen animate-fade-in">
@@ -262,77 +183,22 @@ export default function UniqueCluesPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Categories */}
-            <div className="relative" ref={categoryDropdownRef}>
-              <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                Categories
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
-              >
-                <span className={categories.length > 0 ? "text-foreground" : "text-muted-foreground"}>
-                  {selectionLabel(categories.length, "category", "categories")}
-                </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {showCategoryDropdown && (
-                <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
-                  {categoryOptions.map((category) => (
-                    <label
-                      key={category}
-                      className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={categories.includes(category)}
-                        onChange={() => handleCheckboxChange(category, setCategories, categories)}
-                        className="mr-3 h-4 w-4 accent-accent"
-                      />
-                      {category}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Difficulties */}
-            <div className="relative" ref={difficultyDropdownRef}>
-              <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                Difficulties
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowDifficultyDropdown(!showDifficultyDropdown)}
-                className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
-              >
-                <span className={difficulties.length > 0 ? "text-foreground" : "text-muted-foreground"}>
-                  {selectionLabel(difficulties.length, "difficulty", "difficulties")}
-                </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {showDifficultyDropdown && (
-                <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
-                  {difficultyOptions.map((difficulty) => (
-                    <label
-                      key={difficulty}
-                      className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={difficulties.includes(difficulty)}
-                        onChange={() => handleCheckboxChange(difficulty, setDifficulties, difficulties)}
-                        className="mr-3 h-4 w-4 accent-accent"
-                      />
-                      {difficulty}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
+            <MultiSelectDropdown
+              label="Categories"
+              options={CATEGORY_OPTIONS}
+              selected={categories}
+              onChange={setCategories}
+              singular="category"
+              plural="categories"
+            />
+            <MultiSelectDropdown
+              label="Difficulties"
+              options={DIFFICULTY_OPTIONS}
+              selected={difficulties}
+              onChange={setDifficulties}
+              singular="difficulty"
+              plural="difficulties"
+            />
           </div>
 
           {/* Similarity threshold */}
@@ -466,9 +332,9 @@ export default function UniqueCluesPage() {
                   ) : (
                     <div className="flex items-start gap-4">
                       <p className="text-foreground/90 flex-1 leading-relaxed">
-                        {typeof clue === "string" ? clue : clue.text}
+                        {clue.text}
                       </p>
-                      {typeof clue?.difficulty === "number" && (
+                      {typeof clue.difficulty === "number" && (
                         <span
                           className="font-mono text-xs text-muted-foreground whitespace-nowrap mt-1"
                           title={`Averaged across ${clue.cluster_size ?? 1} clue${clue.cluster_size === 1 ? "" : "s"}`}

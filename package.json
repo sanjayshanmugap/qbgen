@@ -9,7 +9,6 @@
   "scripts": {
     "build": "cd qbgen-landing && pnpm build",
     "dev": "cd qbgen-landing && pnpm dev",
-    "start": "cd qbgen-landing && pnpm start",
     "docker:build": "docker build -t qbgen-app:latest .",
     "docker:run": "docker run -p 8080:8080 qbgen-app:latest"
   },

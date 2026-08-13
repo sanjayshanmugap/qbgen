@@ -1,12 +1,15 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Loader2, Edit3, Trash2, Download, Check, X, ChevronDown } from "lucide-react";
+import { Search, Loader2, Edit3, Trash2, Download, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BackendStatus } from "@/components/BackendStatus";
+import { MultiSelectDropdown } from "@/components/MultiSelectDropdown";
 import { buildApiUrl } from "@/lib/api";
+import { CATEGORY_OPTIONS } from "@/lib/quiz-options";
+import { useLoadingMessage } from "@/hooks/use-loading-message";
 
 type QuestionType = "tossup" | "bonus" | "all";
 type BonusPart = "easy" | "medium" | "hard";
@@ -45,28 +48,16 @@ export default function SetCardingPage() {
   const [editingClue, setEditingClue] = useState<number | null>(null);
   const [editedClueText, setEditedClueText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showSetDropdown, setShowSetDropdown] = useState(false);
 
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const setDropdownRef = useRef<HTMLDivElement>(null);
 
-  const categoryOptions = [
-    "Literature",
-    "History",
-    "Science",
-    "Fine Arts",
-    "Religion",
-    "Mythology",
-    "Philosophy",
-    "Social Science",
-    "Current Events",
-    "Geography",
-    "Other Academic",
-    "Trash",
-  ];
+  const loadingMessage = useLoadingMessage(
+    isLoading,
+    "Generating clues...",
+    "Still working. QBReader or sentence processing may be taking longer than usual.",
+  );
 
   const questionTypeOptions: { value: QuestionType; label: string }[] = [
     { value: "tossup", label: "Tossups" },
@@ -117,13 +108,6 @@ export default function SetCardingPage() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        categoryDropdownRef.current &&
-        !categoryDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowCategoryDropdown(false);
-      }
-
-      if (
         setDropdownRef.current &&
         !setDropdownRef.current.contains(event.target as Node)
       ) {
@@ -134,28 +118,6 @@ export default function SetCardingPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      setLoadingMessage("");
-      return;
-    }
-
-    setLoadingMessage("Generating clues...");
-
-    const coldStartTimer = window.setTimeout(() => {
-      setLoadingMessage("Waking up the backend. The first request after idle can take a bit longer.");
-    }, 4000);
-
-    const upstreamTimer = window.setTimeout(() => {
-      setLoadingMessage("Still working. QBReader or sentence processing may be taking longer than usual.");
-    }, 12000);
-
-    return () => {
-      window.clearTimeout(coldStartTimer);
-      window.clearTimeout(upstreamTimer);
-    };
-  }, [isLoading]);
 
   const handleGenerateClues = async () => {
     if (!selectedSet) return;
@@ -228,7 +190,8 @@ export default function SetCardingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clues: visibleClues
+          clues: visibleClues,
+          deck_name: generatedSet || selectedSet,
         }),
       });
 
@@ -267,14 +230,6 @@ export default function SetCardingPage() {
     } catch (error) {
       console.error("Error exporting cards:", error);
       setErrorMessage(error instanceof Error ? error.message : "Failed to export cards.");
-    }
-  };
-
-  const handleCheckboxChange = (option: string, setState: React.Dispatch<React.SetStateAction<string[]>>, state: string[]) => {
-    if (state.includes(option)) {
-      setState(state.filter((item: string) => item !== option));
-    } else {
-      setState([...state, option]);
     }
   };
 
@@ -341,13 +296,6 @@ export default function SetCardingPage() {
     return parts.join(" · ");
   };
 
-  const categoryLabel =
-    categories.length === 0
-      ? "Select categories (optional)"
-      : categories.length === 1
-      ? "1 category selected"
-      : `${categories.length} categories selected`;
-
   return (
     <div className="min-h-screen animate-fade-in">
       <div className="max-w-2xl mx-auto px-6 pt-16 pb-24">
@@ -413,41 +361,15 @@ export default function SetCardingPage() {
           </div>
 
           {/* Category filter */}
-          <div className="relative" ref={categoryDropdownRef}>
-            <label className="block text-xs uppercase tracking-[0.18em] text-muted-foreground mb-2">
-              Categories
-              <span className="normal-case tracking-normal text-muted-foreground ml-1">(optional)</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-              className="w-full h-12 flex items-center justify-between border-b border-foreground/20 bg-transparent text-left text-foreground hover:border-foreground/40 transition-colors focus:outline-none focus:border-accent focus:border-b-2"
-            >
-              <span className={categories.length > 0 ? "text-foreground" : "text-muted-foreground"}>
-                {categoryLabel}
-              </span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            </button>
-
-            {showCategoryDropdown && (
-              <div className="absolute z-40 w-full mt-1 bg-surface border border-foreground/15 shadow-lg max-h-60 overflow-y-auto">
-                {categoryOptions.map((category) => (
-                  <label
-                    key={category}
-                    className="flex items-center px-3 py-2 hover:bg-foreground/5 cursor-pointer text-foreground"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={categories.includes(category)}
-                      onChange={() => handleCheckboxChange(category, setCategories, categories)}
-                      className="mr-3 h-4 w-4 accent-accent"
-                    />
-                    {category}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
+          <MultiSelectDropdown
+            label="Categories"
+            optional
+            options={CATEGORY_OPTIONS}
+            selected={categories}
+            onChange={setCategories}
+            singular="category"
+            plural="categories"
+          />
 
           {/* Question type */}
           <div>

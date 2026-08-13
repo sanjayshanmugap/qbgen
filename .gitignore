@@ -61,3 +61,6 @@ Thumbs.db
 .pnpm-store/
 
 models/
+
+# Generated corpus decks
+output/
