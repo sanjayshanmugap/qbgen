@@ -148,7 +148,7 @@ def query_db(
     searchType="answer",
     exactPhrase=True,
     ignoreWordOrder=False,
-    regex=True,
+    regex=False,
     randomize=False,
     difficulties="",
     categories="",
